@@ -233,7 +233,8 @@ pub unsafe extern "system" fn grSstQueryBoards(config: *mut HwConfig) -> FxBool 
 fn window_target(hwnd: usize, size: Option<(u32, u32)>) -> Target {
     use raw_window_handle::{RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle};
     use windows_sys::Win32::Foundation::RECT;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{GetActiveWindow, GetClientRect};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect;
     // SAFETY: plain Win32 queries on a window handle the game owns.
     let hwnd = if hwnd == 0 { unsafe { GetActiveWindow() as usize } } else { hwnd };
     let Some(handle) = std::num::NonZeroIsize::new(hwnd as isize) else {

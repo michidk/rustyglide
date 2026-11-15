@@ -86,39 +86,40 @@ stream be recorded and replayed (see Testing). A boundary check (as in Cyrus,
   with the aspect ratio kept (4:3 with bars by default), then runs a present
   hook with the device, queue, encoder and surface view so a host can draw an
   overlay (egui-wgpu in Maiko).
-- **LFB.** Dirty flags track whether the CPU or GPU copy is current, as in
-  GXVK.
-  - A read lock copies the target to a buffer and waits for the map, and only
-    when the GPU copy changed since the last read.
-  - A write lock gives a CPU shadow that keeps the existing pixels.
-  - Unlock uploads the changed rows and draws them through the pixel pipeline
-    or straight to the target, as the lock requests.
+- **LFB.**
+  - A read lock copies the target to a buffer and waits for the map. Skipping
+    the copy when nothing changed since the last read is still to do.
+  - A write lock hands out a buffer filled with a sentinel value, as
+    OpenGLide does; on unlock the pixels that differ from it are the ones the
+    game wrote, so a write needs no read-back.
+  - Unlock uploads the written rectangle with a mask and draws it through the
+    pixel pipeline or straight to the target, as the lock requests.
 - **Gamma** is applied in the present pass, never per fragment.
 
 ### rustyglide (public API)
 
 ```rust
-let mut glide = Glide::new(Config::from_env())?;
-glide.sst_win_open(Target::window(&sdl_window), GrResolution::R640x480, ..)?;
+let mut glide = Glide::new(Settings::from_env());
+glide.sst_win_open(unsafe { Target::window(&sdl_window, size)? }, Resolution::R640x480, ..)?;
 glide.color_combine(..); glide.draw_triangle(&a, &b, &c);
 glide.buffer_swap(1);
-glide.set_present_hook(|frame| overlay.paint(frame));
+glide.set_present_hook(Some(Box::new(|frame| overlay.paint(frame))));
 ```
 
-Methods mirror Glide calls one to one with Rust types.
+State and drawing calls are the core's methods, reached through `Deref`;
+calls that need the GPU (window, swap, LFB locks) are methods of `Glide`.
 
 Targets:
 - any `HasWindowHandle + HasDisplayHandle` window (SDL2 0.38 implements
   raw-window-handle 0.6 and ships a wgpu example);
 - a headless texture, for tests;
-- a window rustyglide creates itself with winit, pumping events on swap. This
-  is for the drop-in libraries when the game does not give one.
+- later, a window rustyglide creates itself with winit, pumping events on
+  swap, for the drop-in libraries when the game gives none (Linux, macOS).
 
-Configuration is a TOML file plus `RUSTYGLIDE_*` variables. It covers the
-OpenGLide-ng options that still mean something: resolution scale, forced
-filtering, mipmaps on or off, vsync, texture memory size, ignore palette
-change, aspect handling and the splash screen. Backend selection is wgpu's own
-`WGPU_BACKEND`.
+Configuration is `RUSTYGLIDE_*` environment variables: resolution scale, TMU
+count, texture memory, forced filtering and mipmaps on or off. Backend
+selection is wgpu's own `WGPU_BACKEND`. A per-game file can follow when a
+title needs one.
 
 ### Front ends (glide2x, glide3x, glide1x)
 
@@ -150,9 +151,9 @@ change, aspect handling and the splash screen. Backend selection is wgpu's own
 | Traces | Maiko records Redguard's Glide command stream in the core command format; replay renders it headless and compares frames to OpenGLide-ng. Traces contain game data and stay local, never in Git or CI | local, with an owned copy |
 | Real hardware | Maiko on Windows, Linux and macOS GPUs | before calling a milestone done |
 
-CI uses lavapipe because it is deterministic and needs no GPU. Windows CI can
-run the scenes on WARP (D3D12's software rasterizer); macOS runs them on Metal
-if the hosted runner exposes it, otherwise it only builds.
+CI uses lavapipe because it is deterministic and needs no GPU. Windows and
+macOS build and run the tests that skip without an adapter; golden scenes run
+on Linux only, since other rasterizers differ at edges.
 
 ## CI
 
@@ -171,13 +172,14 @@ Modelled on Cyrus, with actions pinned by SHA and the toolchain pinned in
     - `x86_64-pc-windows-msvc`
     - `i686-pc-windows-msvc`, the 32-bit `glide2x.dll` most real games need
     - `aarch64-apple-darwin` and `x86_64-apple-darwin`
-    - Windows runs the scenes on WARP.
+    - The 32-bit build checks every decorated `_name@N` export.
 - **`pr-title.yml`:** Conventional Commits check, as in Cyrus.
-- **`bump-version.yml` and `release.yml`:** git-cliff versioning and
-  per-target `glide2x` archives with `SHA256SUMS`, as in Cyrus.
+- **`release.yml`:** on a `v*` tag, per-target `glide2x` archives with
+  `SHA256SUMS` and a git-cliff changelog. A version-bump workflow like
+  Cyrus's needs the releaser App secrets and can follow.
 - **Renovate** with the shared `michidk/workflows` preset.
 - **Locally:** `dev/scripts/gates.sh` runs the same stages, behind a
-  `justfile` (`just gates`, `just verify <crate>`, `just parity`).
+  `justfile` (`just gates`, `just gpu`, `just bless`, `just sheet`).
 
 ## What we take from existing projects
 
@@ -242,6 +244,9 @@ Redguard imports 124 Glide 2 calls, and Maiko forwards 37 of them today.
    detection keep using a read lock on the back buffer.
 
 ## Milestones
+
+Milestones 1 to 4 are done except dithering, and the parity and trace
+harnesses are still to build. Milestone 5 is next.
 
 1. **Skeleton.** Workspace, CI, core types, the `glide2x` export table with
    every call present (unimplemented calls log once), headless target and

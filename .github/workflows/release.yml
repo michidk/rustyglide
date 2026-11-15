@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG_NAME: ${{ github.ref_name }}
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Package (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            file: libglide2x.so
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+            file: glide2x.dll
+          - os: windows-2025
+            target: i686-pc-windows-msvc
+            file: glide2x.dll
+          - os: macos-15
+            target: aarch64-apple-darwin
+            file: libglide2x.dylib
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            file: libglide2x.dylib
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: '1.90.0'
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          shared-key: release-${{ matrix.target }}
+      - name: Build glide2x
+        run: cargo build --locked --release -p glide2x --target ${{ matrix.target }}
+      - name: Package
+        run: |
+          name="glide2x-${TAG_NAME}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp "target/${{ matrix.target }}/release/${{ matrix.file }}" README.md LICENSE-MIT LICENSE-APACHE THIRD_PARTY.md "dist/$name/"
+          (cd dist && tar -czf "$name.tar.gz" "$name" && rm -r "$name")
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Generate release changelog
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4
+        with:
+          config: cliff.toml
+          args: --current --strip header --output CHANGELOG.md
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Generate checksums
+        working-directory: artifacts
+        run: sha256sum -- * > SHA256SUMS
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$TAG_NAME" artifacts/* --verify-tag --title "${TAG_NAME#v}" --notes-file CHANGELOG.md
