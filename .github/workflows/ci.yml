@@ -88,6 +88,10 @@ jobs:
             target: aarch64-apple-darwin
           - os: macos-15-intel
             target: x86_64-apple-darwin
+    env:
+      # RUSTFLAGS replaces .cargo/config.toml's flags, so repeat the static C
+      # runtime the Windows libraries ship with.
+      RUSTFLAGS: ${{ contains(matrix.target, 'windows-msvc') && '-D warnings -C target-feature=+crt-static' || '-D warnings' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
