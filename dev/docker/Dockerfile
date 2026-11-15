@@ -1,6 +1,6 @@
 # Runs rustyglide's GPU tests without a GPU: lavapipe (software Vulkan) and
 # llvmpipe (software OpenGL). Test binaries are built on the host and mounted.
-FROM ubuntu:24.04
+FROM ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 libegl1 libgl1-mesa-dri \
