@@ -16,10 +16,14 @@ fn main() {
         let mut parts = line.split_whitespace();
         let (name, bytes) = (parts.next().expect("name"), parts.next().expect("bytes"));
         if x86 {
-            // Export the decorated name games import. MSVC matches the undecorated
-            // internal name to the stdcall symbol; GNU ld needs the `@N` suffix.
-            let internal = if msvc { name.to_owned() } else { format!("{name}@{bytes}") };
-            def.push_str(&format!("    _{name}@{bytes} = {internal}\n"));
+            // Export the decorated name games import. MSVC's link.exe keeps it only
+            // when the entry names the decorated symbol itself; with an undecorated
+            // internal name it drops the `@N`. GNU ld needs the `= name@N` mapping.
+            if msvc {
+                def.push_str(&format!("    _{name}@{bytes}\n"));
+            } else {
+                def.push_str(&format!("    _{name}@{bytes} = {name}@{bytes}\n"));
+            }
         } else {
             def.push_str(&format!("    {name}\n"));
         }
