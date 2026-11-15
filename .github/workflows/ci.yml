@@ -88,6 +88,10 @@ jobs:
             target: aarch64-apple-darwin
           - os: macos-15-intel
             target: x86_64-apple-darwin
+    env:
+      # RUSTFLAGS replaces .cargo/config.toml's flags, so repeat the static C
+      # runtime the Windows libraries ship with.
+      RUSTFLAGS: ${{ contains(matrix.target, 'windows-msvc') && '-D warnings -C target-feature=+crt-static' || '-D warnings' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
@@ -115,4 +119,14 @@ jobs:
             [[ -z "$name" || "$name" == \#* ]] && continue
             grep -qE "(^|[[:space:]])_${name}@${bytes}([[:space:]]|\$)" <<<"$exports" || { echo "missing export _${name}@${bytes}"; missing=1; }
           done < <(tr -d '\r' < crates/glide2x/exports.txt)
+          # The DLL must load on a plain Windows: no Visual C++ runtime imports.
+          if grep -iE 'DLL Name: (vcruntime|msvcp|api-ms-win-crt)' <<<"$exports"; then
+            echo "glide2x.dll imports the Visual C++ runtime"; missing=1
+          fi
           exit $missing
+      - name: Upload the 32-bit DLL
+        if: matrix.target == 'i686-pc-windows-msvc'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: glide-i686-pc-windows-msvc
+          path: target/i686-pc-windows-msvc/debug/glide*.dll
