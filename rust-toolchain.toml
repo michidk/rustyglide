@@ -1,5 +1,5 @@
 [toolchain]
 # Matches Maiko, the first consumer, so the crates build there unchanged.
-channel = "1.100.0"
+channel = "1.90.0"
 profile = "minimal"
 components = ["clippy", "rustfmt"]

@@ -1075,8 +1075,8 @@ impl Context {
             // Runs of `length << 16 | color565`, as guEncodeRLE16 writes them.
             let total = (width * height) as usize;
             let mut plain = Vec::with_capacity(total * 2);
-            for &run in data.as_chunks::<4>().0 {
-                let run = u32::from_le_bytes(run);
+            for run in data.chunks_exact(4) {
+                let run = u32::from_le_bytes([run[0], run[1], run[2], run[3]]);
                 for _ in 0..(run >> 16) {
                     plain.extend_from_slice(&(run as u16).to_le_bytes());
                 }

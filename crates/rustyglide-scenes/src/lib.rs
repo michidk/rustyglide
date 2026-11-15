@@ -26,6 +26,13 @@ pub fn gpu_required() -> bool {
     std::env::var("RUSTYGLIDE_REQUIRE_GPU").is_ok_and(|v| v == "1")
 }
 
+/// Serializes GPU tests within one test binary. Mesa 26's lavapipe crashes
+/// when two devices render in one process at the same time.
+pub fn gpu_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// Opens a headless Glide, or `None` (after printing why) when there is no
 /// GPU and none is required.
 pub fn open_or_skip() -> Option<Glide> {
@@ -99,10 +106,8 @@ pub fn read_png(path: &std::path::Path) -> std::io::Result<((u32, u32), Vec<u8>)
 
 /// Pixels whose largest channel difference exceeds `tolerance`.
 pub fn differing_pixels(a: &[u8], b: &[u8], tolerance: u8) -> usize {
-    a.as_chunks::<4>()
-        .0
-        .iter()
-        .zip(b.as_chunks::<4>().0)
+    a.chunks_exact(4)
+        .zip(b.chunks_exact(4))
         .filter(|(p, q)| p.iter().zip(q.iter()).any(|(x, y)| x.abs_diff(*y) > tolerance))
         .count()
 }

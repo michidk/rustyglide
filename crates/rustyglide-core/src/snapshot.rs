@@ -96,13 +96,13 @@ pub fn save(c: &Context, out: &mut [u8]) {
         w.push(0);
     }
     debug_assert_eq!(w.len() * 4, SIZE);
-    for (chunk, word) in out.as_chunks_mut::<4>().0.iter_mut().zip(w) {
-        *chunk = word.to_le_bytes();
+    for (chunk, word) in out.chunks_exact_mut(4).zip(w) {
+        chunk.copy_from_slice(&word.to_le_bytes());
     }
 }
 
 pub fn restore(c: &mut Context, data: &[u8]) {
-    let w: Vec<u32> = data.as_chunks::<4>().0.iter().map(|&b| u32::from_le_bytes(b)).collect();
+    let w: Vec<u32> = data.chunks_exact(4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
     if w.len() * 4 < SIZE || w[0] != MAGIC {
         return;
     }

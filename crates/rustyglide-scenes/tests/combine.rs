@@ -6,7 +6,7 @@ use rustyglide::texture::TexInfo;
 use rustyglide::types::*;
 use rustyglide::{GrVertex, combine};
 use rustyglide_scenes::reference::{Inputs, shade};
-use rustyglide_scenes::{SIZE, open_or_skip, scenes};
+use rustyglide_scenes::{SIZE, gpu_lock, open_or_skip, scenes};
 
 const FUNCTIONS: [CombineFunction; 11] = [
     CombineFunction::Zero,
@@ -64,6 +64,7 @@ fn all(alpha_sweep: bool) -> Vec<Combine> {
 }
 
 fn sweep(alpha_sweep: bool) {
+    let _gpu = gpu_lock();
     let combos = all(alpha_sweep);
     let per_frame = ((SIZE.0 / CELL) * (SIZE.1 / CELL)) as usize;
     let inputs = Inputs {
