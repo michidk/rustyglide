@@ -1,0 +1,4 @@
+# Link the C runtime statically into the Windows MSVC builds, so glide2x.dll
+# and glide3x.dll load without the Visual C++ redistributable installed.
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]

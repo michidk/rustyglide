@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 root=$PWD
 docker image inspect rustyglide-test:dev >/dev/null 2>&1 || docker build -q -t rustyglide-test:dev dev/docker
-mapfile -t binaries < <(cargo test -p rustyglide-scenes -p glide2x --no-run --message-format=json 2>/dev/null \
+mapfile -t binaries < <(cargo test -p rustyglide-scenes -p glide2x -p glide3x --no-run --message-format=json 2>/dev/null \
     | python3 -c 'import json,sys
 for line in sys.stdin:
     m = json.loads(line)

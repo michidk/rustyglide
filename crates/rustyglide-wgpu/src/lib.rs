@@ -119,30 +119,78 @@ pub struct Gpu {
     pub queue: wgpu::Queue,
 }
 
+/// No driver debug output or validation unless asked for with `WGPU_DEBUG=1`
+/// or `WGPU_VALIDATION=1`: debug builds otherwise flood the log with driver
+/// performance notes.
+pub fn instance_flags() -> wgpu::InstanceFlags {
+    wgpu::InstanceFlags::empty().with_env()
+}
+
+/// Applies rustyglide's instance settings: [`instance_flags`], and every
+/// backend when `WGPU_BACKEND` names none wgpu knows (such as `dx` for `dx12`),
+/// instead of none at all.
+pub fn configure(descriptor: &mut wgpu::InstanceDescriptor) {
+    descriptor.flags = instance_flags();
+    if descriptor.backends.is_empty() {
+        log::error!(
+            "WGPU_BACKEND={:?} names no backend; use vulkan, dx12, metal or gl. Trying all.",
+            std::env::var("WGPU_BACKEND").unwrap_or_default()
+        );
+        descriptor.backends = wgpu::Backends::all();
+    }
+}
+
 impl Gpu {
     /// Picks an adapter (compatible with `surface` when given) and opens a device.
+    /// When the preferred adapter cannot open a device (broken drivers, a
+    /// translation layer like Wine's Direct3D 12), the next compatible one is tried.
     pub fn new(instance: wgpu::Instance, surface: Option<&wgpu::Surface<'_>>) -> Result<Self, Error> {
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        let preferred = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             force_fallback_adapter: false,
             compatible_surface: surface,
             apply_limit_buckets: false,
         }))
-        .map_err(|e| Error::Adapter(e.to_string()))?;
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: Some("rustyglide"),
-            required_features: wgpu::Features::empty(),
-            required_limits: wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits()),
-            ..Default::default()
-        }))
-        .map_err(|e| Error::Device(e.to_string()))?;
-        log::info!("rustyglide: {} via {:?}", adapter.get_info().name, adapter.get_info().backend);
-        Ok(Self { instance, adapter, device, queue })
+        .ok();
+        let mut candidates: Vec<wgpu::Adapter> = preferred.into_iter().collect();
+        for adapter in pollster::block_on(instance.enumerate_adapters(wgpu::Backends::all())) {
+            let info = adapter.get_info();
+            let supported = surface.is_none_or(|s| adapter.is_surface_supported(s));
+            if supported && !candidates.iter().any(|c| c.get_info() == info) {
+                candidates.push(adapter);
+            }
+        }
+        if candidates.is_empty() {
+            return Err(Error::Adapter("no adapter can draw to this target".into()));
+        }
+        let mut last = String::new();
+        for adapter in candidates {
+            let info = adapter.get_info();
+            let request = adapter.request_device(&wgpu::DeviceDescriptor {
+                label: Some("rustyglide"),
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits()),
+                ..Default::default()
+            });
+            match pollster::block_on(request) {
+                Ok((device, queue)) => {
+                    log::info!("rustyglide: {} via {:?}", info.name, info.backend);
+                    return Ok(Self { instance, adapter, device, queue });
+                }
+                Err(e) => {
+                    log::warn!("rustyglide: {} via {:?} failed: {e}", info.name, info.backend);
+                    last = e.to_string();
+                }
+            }
+        }
+        Err(Error::Device(last))
     }
 
     /// A device without a window, for tests and off-screen use.
     pub fn headless() -> Result<Self, Error> {
-        Self::new(wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env()), None)
+        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+        configure(&mut descriptor);
+        Self::new(wgpu::Instance::new(descriptor), None)
     }
 }
 

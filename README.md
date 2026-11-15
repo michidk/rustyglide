@@ -9,8 +9,9 @@ feature and to be reusable by any game that used a Voodoo card.
   drawing into its own window (SDL2, winit or anything with a raw window
   handle). [Maiko](https://github.com/michidk/maiko), which runs Redguard
   natively, is the first user.
-- **A drop-in `glide2x`.** The `glide2x` crate builds `glide2x.dll` /
-  `libglide2x.so` with all 127 Glide 2.4x exports, including the decorated
+- **Drop-in libraries.** `glide2x` builds `glide2x.dll` / `libglide2x.so`
+  with all 127 Glide 2.4x exports, and `glide3x` builds `glide3x.dll` /
+  `libglide3x.so` with the 94 Glide 3.x exports, both with the decorated
   32-bit Windows names.
 
 ## Scenes
@@ -30,7 +31,13 @@ W buffers, table and iterated fog, every texture format with palettes and NCC
 tables, mipmaps, multibase, the LFB, the `gu*` texture manager and `.3df`
 loader, state save and restore, and clipped drawing.
 
-Not yet: Glide 3 (`glide3x`) and 2.1x (`glide.dll`) front ends, a window of its
+Glide 3 (`glide3x`) follows OpenGLide-ng's Glide 3 wrapper: vertex layouts,
+window and clip coordinates, array draws with strip and fan continuation,
+`grGet`/`grGetString`/`grQueryResolutions`, and the same stubs (contexts,
+`grGetProcAddress`, pipeline configuration). It has only a smoke test so far,
+no game.
+
+Not yet: the 2.1x (`glide.dll`) front end, a window of its
 own for the drop-in on Linux and macOS (it renders off screen there), edge
 antialiasing, dithering to 16 bits, and the 3dfx splash screen. Only Redguard
 is targeted for testing so far. See [docs/design.md](docs/design.md).
@@ -62,6 +69,7 @@ Settings come from the environment:
 | `RUSTYGLIDE_TEXTURE_MEMORY_MB` | Texture memory per unit (default 4). |
 | `RUSTYGLIDE_FILTER` | `point` or `bilinear` overrides the game's texture filter. |
 | `RUSTYGLIDE_NO_MIPMAPS` | `1` ignores mipmapping. |
+| `RUSTYGLIDE_LOG` | Write rustyglide's and wgpu's messages to this file (or `stderr`); `RUSTYGLIDE_LOG_LEVEL` sets `error` to `trace`. |
 | `WGPU_BACKEND` | `vulkan`, `metal`, `dx12` or `gl`. |
 
 ## Layout
@@ -71,7 +79,9 @@ Settings come from the environment:
 | `rustyglide-core` | Glide state, texture memory and formats, fog, LFB pixels. No GPU types. |
 | `rustyglide-wgpu` | Runs the core's commands with wgpu; the Voodoo pixel pipeline in WGSL. |
 | `rustyglide` | The public API: core plus renderer plus a window. |
+| `glide-abi` | C ABI plumbing and the exports Glide 2 and 3 share. |
 | `glide2x` | The Glide 2.4x C ABI as a drop-in library. |
+| `glide3x` | The Glide 3.x C ABI as a drop-in library. |
 | `rustyglide-scenes` | Feature scenes, golden images and the combiner check. |
 
 ## Development

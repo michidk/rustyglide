@@ -14,7 +14,7 @@ categories.workspace = true
 rustyglide-core.workspace = true
 rustyglide-wgpu.workspace = true
 raw-window-handle.workspace = true
-log.workspace = true
+log = { workspace = true, features = ["std"] }
 
 [lints]
 workspace = true
