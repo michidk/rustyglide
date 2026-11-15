@@ -31,3 +31,5 @@ undocumented_unsafe_blocks = "warn"
 
 [profile.release]
 lto = "thin"
+# Release libraries ship without symbol tables; the C exports stay.
+strip = "symbols"
