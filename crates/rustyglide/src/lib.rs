@@ -15,6 +15,8 @@
 //! # Ok(()) }
 //! ```
 
+pub mod logging;
+
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle};
 use rustyglide_core::types::{Buffer, ColorFormat, FilterMode, LfbWriteMode, Origin, Resolution, lock};
 pub use rustyglide_core::*;

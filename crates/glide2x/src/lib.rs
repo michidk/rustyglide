@@ -114,6 +114,7 @@ fn host_size(info: &TexInfo) -> usize {
 
 #[unsafe(no_mangle)]
 pub extern "system" fn grGlideInit() {
+    rustyglide::logging::init_from_env();
     let mut guard = GLOBAL.lock().unwrap_or_else(|e| e.into_inner());
     if guard.0.is_none() {
         guard.0 = Some(State {
@@ -277,6 +278,7 @@ pub extern "system" fn grSstWinOpen(
         return 0;
     };
     let target = window_target(hwnd, resolution.size());
+    log::info!("grSstWinOpen: window {hwnd:#x}, {resolution:?}, {color_format:?}, {origin:?}");
     glide(|g| match g.sst_win_open(target, resolution, color_format, origin) {
         Ok(()) => 1,
         Err(e) => {

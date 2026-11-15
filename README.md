@@ -62,6 +62,7 @@ Settings come from the environment:
 | `RUSTYGLIDE_TEXTURE_MEMORY_MB` | Texture memory per unit (default 4). |
 | `RUSTYGLIDE_FILTER` | `point` or `bilinear` overrides the game's texture filter. |
 | `RUSTYGLIDE_NO_MIPMAPS` | `1` ignores mipmapping. |
+| `RUSTYGLIDE_LOG` | Write rustyglide's and wgpu's messages to this file (or `stderr`); `RUSTYGLIDE_LOG_LEVEL` sets `error` to `trace`. |
 | `WGPU_BACKEND` | `vulkan`, `metal`, `dx12` or `gl`. |
 
 ## Layout
