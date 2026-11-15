@@ -1,0 +1,21 @@
+[package]
+name = "glide3x"
+description = "Drop-in glide3x.dll / libglide3x.so built on rustyglide"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+glide-abi = { path = "../glide-abi" }
+
+[dev-dependencies]
+rustyglide.workspace = true
+
+[lints]
+workspace = true

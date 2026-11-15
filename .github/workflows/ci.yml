@@ -88,6 +88,10 @@ jobs:
             target: aarch64-apple-darwin
           - os: macos-15-intel
             target: x86_64-apple-darwin
+    env:
+      # RUSTFLAGS replaces .cargo/config.toml's flags, so repeat the static C
+      # runtime the Windows libraries ship with.
+      RUSTFLAGS: ${{ contains(matrix.target, 'windows-msvc') && '-D warnings -C target-feature=+crt-static' || '-D warnings' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
@@ -108,11 +112,17 @@ jobs:
         if: matrix.target == 'i686-pc-windows-msvc'
         run: |
           objdump="$(rustc --print sysroot)/lib/rustlib/x86_64-pc-windows-msvc/bin/llvm-objdump.exe"
-          exports="$("$objdump" -p "target/${{ matrix.target }}/debug/glide2x.dll" | tr -d '\r')"
-          grep -m 5 '_gr' <<<"$exports" || true
           missing=0
-          while read -r name bytes; do
-            [[ -z "$name" || "$name" == \#* ]] && continue
-            grep -qE "(^|[[:space:]])_${name}@${bytes}([[:space:]]|\$)" <<<"$exports" || { echo "missing export _${name}@${bytes}"; missing=1; }
-          done < <(tr -d '\r' < crates/glide2x/exports.txt)
+          for lib in glide2x glide3x; do
+            exports="$("$objdump" -p "target/${{ matrix.target }}/debug/$lib.dll" | tr -d '\r')"
+            grep -m 3 '_gr' <<<"$exports" || true
+            while read -r name bytes; do
+              [[ -z "$name" || "$name" == \#* ]] && continue
+              grep -qE "(^|[[:space:]])_${name}@${bytes}([[:space:]]|\$)" <<<"$exports" || { echo "missing $lib export _${name}@${bytes}"; missing=1; }
+            done < <(tr -d '\r' < "crates/$lib/exports.txt")
+            # The DLLs must load on a plain Windows: no Visual C++ runtime imports.
+            if grep -iE 'DLL Name: (vcruntime|msvcp|api-ms-win-crt)' <<<"$exports"; then
+              echo "$lib.dll imports the Visual C++ runtime"; missing=1
+            fi
+          done
           exit $missing

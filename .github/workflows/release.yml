@@ -101,18 +101,22 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: release-${{ matrix.target }}
-      - name: Build glide2x
-        run: cargo build --locked --release -p glide2x --target ${{ matrix.target }}
+      - name: Build glide2x and glide3x
+        run: cargo build --locked --release -p glide2x -p glide3x --target ${{ matrix.target }}
       - name: Package
         run: |
-          name="glide2x-${TAG_NAME}-${{ matrix.target }}"
-          mkdir -p "dist/$name"
-          cp "target/${{ matrix.target }}/release/${{ matrix.file }}" README.md LICENSE-MIT LICENSE-APACHE THIRD_PARTY.md "dist/$name/"
-          if [[ "${{ runner.os }}" == Windows ]]; then
-            (cd dist && 7z a -tzip -bso0 "$name.zip" "$name" && rm -r "$name")
-          else
-            (cd dist && tar -czf "$name.tar.gz" "$name" && rm -r "$name")
-          fi
+          for lib in glide2x glide3x; do
+            file="${{ matrix.file }}"
+            file="${file/glide2x/$lib}"
+            name="$lib-${TAG_NAME}-${{ matrix.target }}"
+            mkdir -p "dist/$name"
+            cp "target/${{ matrix.target }}/release/$file" README.md LICENSE-MIT LICENSE-APACHE THIRD_PARTY.md "dist/$name/"
+            if [[ "${{ runner.os }}" == Windows ]]; then
+              (cd dist && 7z a -tzip -bso0 "$name.zip" "$name" && rm -r "$name")
+            else
+              (cd dist && tar -czf "$name.tar.gz" "$name" && rm -r "$name")
+            fi
+          done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ matrix.target }}

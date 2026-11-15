@@ -6,7 +6,7 @@ sources informed it:
 | Source | Licence | Use |
 |---|---|---|
 | [3dfx Glide SDK](https://github.com/sezero/glide) | 3DFX Glide Source Code General Public License | Interface facts: enumeration values, structure layouts, texture memory sizes, the `gu*` expansions and fog formulas. The scenes are written from its test descriptions, not translated from its sources. |
-| [OpenGLide-ng](https://github.com/eugenenuke/openglide-ng) | LGPL | The parity target. Behaviour reference for its configuration, the sentinel-based LFB write lock and the Glidos run-length bitmap format of `ConvertAndDownloadRle`. Not linked or shipped. |
+| [OpenGLide-ng](https://github.com/eugenenuke/openglide-ng) | LGPL | The parity target. Behaviour reference for its configuration, the sentinel-based LFB write lock, the Glidos run-length bitmap format of `ConvertAndDownloadRle`, and its Glide 3 wrapper: the `glide3x` export list, vertex-layout handling, `grGet` values and which calls are stubs. Not linked or shipped. |
 | [GXVK](https://github.com/CkNoSFeRaTU/gxvk) | Zlib | Design reference: per-TMU texture memory with hashed re-upload, LFB dirty tracking. |
 | [GlideVK](https://github.com/lutris/GlideVK) | MIT OR Apache-2.0 | Design reference: documented Glide quirks, snap-bias removal. |
 
