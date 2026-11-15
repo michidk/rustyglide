@@ -13,6 +13,16 @@ feature and to be reusable by any game that used a Voodoo card.
   `libglide2x.so` with all 127 Glide 2.4x exports, including the decorated
   32-bit Windows names.
 
+## Scenes
+
+Rendered headless by the test suite on lavapipe; each is a golden image CI
+compares against (`crates/rustyglide-scenes`).
+
+<table>
+  <tr><td align="center"><img src="crates/rustyglide-scenes/golden/gouraud.png" width="200" alt="Gouraud shading"><br>Gouraud shading</td><td align="center"><img src="crates/rustyglide-scenes/golden/zbuffer.png" width="200" alt="Z-buffer"><br>Z-buffer</td><td align="center"><img src="crates/rustyglide-scenes/golden/blend.png" width="200" alt="Alpha blending"><br>Alpha blending</td><td align="center"><img src="crates/rustyglide-scenes/golden/fog_table.png" width="200" alt="Table fog"><br>Table fog</td></tr>
+  <tr><td align="center"><img src="crates/rustyglide-scenes/golden/texture_decal.png" width="200" alt="Perspective-correct texture"><br>Perspective-correct texture</td><td align="center"><img src="crates/rustyglide-scenes/golden/mipmap.png" width="200" alt="Mipmaps"><br>Mipmaps</td><td align="center"><img src="crates/rustyglide-scenes/golden/chroma_key.png" width="200" alt="Chroma key"><br>Chroma key</td><td align="center"><img src="crates/rustyglide-scenes/golden/texture_formats.png" width="200" alt="Every texture format"><br>Every texture format</td></tr>
+</table>
+
 ## Status
 
 Glide 2.4x is implemented: combiners, blending, chroma key, alpha test, Z and
@@ -93,6 +103,17 @@ One-time setup:
   of the three crates once by hand, then add a trusted publisher to each on
   crates.io (repository `michidk/rustyglide`, workflow `release.yml`,
   environment `crates-io`).
+
+## Redguard projects
+
+rustyglide grew out of work on *The Elder Scrolls Adventures: Redguard* (1998):
+
+- [Maiko](https://github.com/michidk/maiko): runs the original game natively
+  on Windows, Linux and macOS, without DOSBox; rustyglide is its renderer.
+- [Cyrus](https://github.com/michidk/cyrus): Redguard rebuilt in Rust and Bevy.
+- [Redguard Preservation](https://github.com/michidk/redguard-preservation):
+  file format specifications, engine documentation and a Rust CLI for the
+  game's assets.
 
 ## Licence
 
