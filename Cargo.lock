@@ -232,13 +232,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "glide2x"
+name = "glide-abi"
 version = "0.1.0"
 dependencies = [
  "log",
  "raw-window-handle",
  "rustyglide",
  "windows-sys",
+]
+
+[[package]]
+name = "glide2x"
+version = "0.1.0"
+dependencies = [
+ "glide-abi",
+ "rustyglide",
+]
+
+[[package]]
+name = "glide3x"
+version = "0.1.0"
+dependencies = [
+ "glide-abi",
+ "rustyglide",
 ]
 
 [[package]]
