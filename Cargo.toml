@@ -8,11 +8,14 @@ edition = "2024"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/michidk/rustyglide"
+readme = "README.md"
+keywords = ["glide", "3dfx", "voodoo", "wgpu", "emulation"]
+categories = ["rendering::graphics-api", "emulators"]
 
 [workspace.dependencies]
-rustyglide-core = { path = "crates/rustyglide-core" }
-rustyglide-wgpu = { path = "crates/rustyglide-wgpu" }
-rustyglide = { path = "crates/rustyglide" }
+rustyglide-core = { path = "crates/rustyglide-core", version = "0.1.0" }
+rustyglide-wgpu = { path = "crates/rustyglide-wgpu", version = "0.1.0" }
+rustyglide = { path = "crates/rustyglide", version = "0.1.0" }
 wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "wgsl", "vulkan", "metal", "dx12", "gles"] }
 raw-window-handle = "0.6"
 pollster = "0.4"

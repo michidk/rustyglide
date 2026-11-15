@@ -174,9 +174,11 @@ Modelled on Cyrus, with actions pinned by SHA and the toolchain pinned in
     - `aarch64-apple-darwin` and `x86_64-apple-darwin`
     - The 32-bit build checks every decorated `_name@N` export.
 - **`pr-title.yml`:** Conventional Commits check, as in Cyrus.
-- **`release.yml`:** on a `v*` tag, per-target `glide2x` archives with
-  `SHA256SUMS` and a git-cliff changelog. A version-bump workflow like
-  Cyrus's needs the releaser App secrets and can follow.
+- **`bump-version.yml`:** as in Cyrus: git-cliff picks the version, the
+  release App commits it and pushes the tag.
+- **`release.yml`:** on a `v*` tag, verifies the tag and gates, builds
+  per-target `glide2x` archives with `SHA256SUMS` and a git-cliff changelog,
+  then publishes the library crates to crates.io with trusted publishing.
 - **Renovate** with the shared `michidk/workflows` preset.
 - **Locally:** `dev/scripts/gates.sh` runs the same stages, behind a
   `justfile` (`just gates`, `just gpu`, `just bless`, `just sheet`).

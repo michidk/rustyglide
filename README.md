@@ -76,6 +76,24 @@ Scenes render headless and compare with `crates/rustyglide-scenes/golden/`.
 After an intended change, `just bless` rewrites the images and `just sheet`
 shows them side by side for review.
 
+## Releases
+
+Run **Bump Version & Tag** (`bump-version.yml`) on `main`: git-cliff picks
+the next version from the Conventional Commits, the workflow commits it and
+pushes the tag. The tag starts `release.yml`, which verifies the tag, builds
+`glide2x` for Linux, Windows (32 and 64-bit) and macOS, publishes the GitHub
+release with `SHA256SUMS`, then publishes `rustyglide-core`,
+`rustyglide-wgpu` and `rustyglide` to crates.io with trusted publishing.
+
+One-time setup:
+
+- Repository secrets `RELEASER_APP_ID` and `RELEASER_APP_PRIVATE_KEY` (the
+  release App, as in Cyrus) and an environment named `crates-io`.
+- Trusted publishing works only for crates that already exist: publish 0.1.0
+  of the three crates once by hand, then add a trusted publisher to each on
+  crates.io (repository `michidk/rustyglide`, workflow `release.yml`,
+  environment `crates-io`).
+
 ## Licence
 
 MIT OR Apache-2.0. See [THIRD_PARTY.md](THIRD_PARTY.md) for the sources that
