@@ -18,7 +18,7 @@ rustyglide-wgpu = { path = "crates/rustyglide-wgpu", version = "0.1.0" }
 rustyglide = { path = "crates/rustyglide", version = "0.1.0" }
 wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "wgsl", "vulkan", "metal", "dx12", "gles"] }
 raw-window-handle = "0.6"
-pollster = "0.4"
+pollster = "1.0"
 log = "0.4"
 bytemuck = { version = "1", features = ["derive"] }
 png = "0.18"
