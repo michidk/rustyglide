@@ -26,6 +26,13 @@ pub fn gpu_required() -> bool {
     std::env::var("RUSTYGLIDE_REQUIRE_GPU").is_ok_and(|v| v == "1")
 }
 
+/// Serializes GPU tests within one test binary. Mesa 26's lavapipe crashes
+/// when two devices render in one process at the same time.
+pub fn gpu_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// Opens a headless Glide, or `None` (after printing why) when there is no
 /// GPU and none is required.
 pub fn open_or_skip() -> Option<Glide> {
