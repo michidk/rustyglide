@@ -1195,12 +1195,25 @@ pub unsafe extern "system" fn gu3dfLoad(name: *const c_char, info: *mut Gu3dfInf
 
 /// `GrLfbInfo_t`.
 #[repr(C)]
+#[derive(Debug)]
 pub struct GrLfbInfo {
-    size: c_int,
-    lfb_ptr: *mut c_void,
-    stride_in_bytes: u32,
-    write_mode: c_int,
-    origin: c_int,
+    pub size: c_int,
+    pub lfb_ptr: *mut c_void,
+    pub stride_in_bytes: u32,
+    pub write_mode: c_int,
+    pub origin: c_int,
+}
+
+impl Default for GrLfbInfo {
+    fn default() -> Self {
+        Self {
+            size: std::mem::size_of::<Self>() as c_int,
+            lfb_ptr: std::ptr::null_mut(),
+            stride_in_bytes: 0,
+            write_mode: 0,
+            origin: 0,
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
