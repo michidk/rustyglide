@@ -106,8 +106,10 @@ pub fn read_png(path: &std::path::Path) -> std::io::Result<((u32, u32), Vec<u8>)
 
 /// Pixels whose largest channel difference exceeds `tolerance`.
 pub fn differing_pixels(a: &[u8], b: &[u8], tolerance: u8) -> usize {
-    a.chunks_exact(4)
-        .zip(b.chunks_exact(4))
+    a.as_chunks::<4>()
+        .0
+        .iter()
+        .zip(b.as_chunks::<4>().0)
         .filter(|(p, q)| p.iter().zip(q.iter()).any(|(x, y)| x.abs_diff(*y) > tolerance))
         .count()
 }

@@ -122,7 +122,7 @@ pub fn load(file: &[u8]) -> Option<(Header, Table, Vec<u8>)> {
     let size = header.mem_required as usize;
     let raw = file.get(at..at + size)?;
     let data = if header.format.bytes_per_texel() == 2 {
-        raw.chunks_exact(2).flat_map(|w| [w[1], w[0]]).collect()
+        raw.as_chunks::<2>().0.iter().flat_map(|&[lo, hi]| [hi, lo]).collect()
     } else {
         raw.to_vec()
     };

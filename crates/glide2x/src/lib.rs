@@ -941,8 +941,8 @@ pub unsafe extern "system" fn ConvertAndDownloadRle(
     }
     let mut texels = vec![0u16; (dest_width * dest_height) as usize];
     let mut line = Vec::new();
-    let mut j = v0 as usize;
-    for k in 0..height.min(dest_height) as usize {
+    // `j` indexes the per-line length table from the first decoded line on.
+    for (k, j) in (0..height.min(dest_height) as usize).zip(v0 as usize..) {
         line.clear();
         let mut at = offset;
         loop {
@@ -962,7 +962,6 @@ pub unsafe extern "system" fn ConvertAndDownloadRle(
             texels[k * dest_width as usize + x] = line.get(u0 as usize + x).copied().unwrap_or(0);
         }
         offset += read(4 + j) as usize;
-        j += 1;
     }
     if height < dest_height && height > 0 {
         let (last, rest) = texels.split_at_mut((height * dest_width) as usize);
