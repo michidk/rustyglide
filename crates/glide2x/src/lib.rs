@@ -235,7 +235,7 @@ fn window_target(hwnd: usize, size: Option<(u32, u32)>) -> Target {
     use raw_window_handle::{RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle};
     use windows_sys::Win32::Foundation::RECT;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
-    use windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GWLP_HINSTANCE, GetClientRect, GetWindowLongPtrW};
     // SAFETY: plain Win32 queries on a window handle the game owns.
     let hwnd = if hwnd == 0 { unsafe { GetActiveWindow() as usize } } else { hwnd };
     let Some(handle) = std::num::NonZeroIsize::new(hwnd as isize) else {
@@ -245,8 +245,13 @@ fn window_target(hwnd: usize, size: Option<(u32, u32)>) -> Target {
     // SAFETY: as above; `rect` is a valid out pointer.
     unsafe { GetClientRect(hwnd as _, &mut rect) };
     let client = ((rect.right - rect.left).max(1) as u32, (rect.bottom - rect.top).max(1) as u32);
+    // Vulkan surfaces need the window's module instance as well as the window.
+    let mut win32 = Win32WindowHandle::new(handle);
+    // SAFETY: as above.
+    let instance = unsafe { GetWindowLongPtrW(hwnd as _, GWLP_HINSTANCE) };
+    win32.hinstance = std::num::NonZeroIsize::new(instance as isize);
     Target::Window {
-        window: RawWindowHandle::Win32(Win32WindowHandle::new(handle)),
+        window: RawWindowHandle::Win32(win32),
         display: RawDisplayHandle::Windows(WindowsDisplayHandle::new()),
         size: client,
     }
