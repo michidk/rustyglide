@@ -116,6 +116,10 @@ pub struct Glide {
     settings: Settings,
     renderer: Option<Renderer>,
     hook: Option<PresentHook>,
+    /// The last color buffer read back, valid until anything is drawn. Hosts
+    /// such as DOSBox lock the frame buffer for reading many times per frame,
+    /// and every GPU read-back stalls rendering.
+    read_cache: Option<(Buffer, Vec<u8>)>,
 }
 
 impl std::ops::Deref for Glide {
@@ -133,7 +137,7 @@ impl std::ops::DerefMut for Glide {
 
 impl Glide {
     pub fn new(settings: Settings) -> Self {
-        Self { core: Context::new(settings.core.clone()), settings, renderer: None, hook: None }
+        Self { core: Context::new(settings.core.clone()), settings, renderer: None, hook: None, read_cache: None }
     }
 
     /// `grSstWinOpen`. A `Resolution::None` takes the target's size.
@@ -149,7 +153,9 @@ impl Glide {
         let renderer = match target {
             Target::Headless { .. } => Renderer::new(&Gpu::headless()?, None, size, scale)?,
             Target::Window { window, display, size: window_size } => {
-                let descriptor = wgpu::InstanceDescriptor::new_with_display_handle_from_env(Box::new(Display(display)));
+                let mut descriptor =
+                    wgpu::InstanceDescriptor::new_with_display_handle_from_env(Box::new(Display(display)));
+                rustyglide_wgpu::configure(&mut descriptor);
                 let instance = wgpu::Instance::new(descriptor);
                 // SAFETY: `Target::window`'s contract keeps both handles valid
                 // for as long as this renderer and its surface live.
@@ -175,6 +181,7 @@ impl Glide {
         self.core.take_commands();
         self.core.win_close();
         self.renderer = None;
+        self.read_cache = None;
     }
 
     /// The window was resized to `width` x `height` pixels.
@@ -197,6 +204,9 @@ impl Glide {
     /// Sends pending work to the GPU. Shows the front buffer if it was drawn to.
     pub fn flush(&mut self) {
         let commands = self.core.take_commands();
+        if !commands.is_empty() {
+            self.read_cache = None;
+        }
         let gamma = self.core.gamma();
         let Some(r) = &mut self.renderer else { return };
         if r.execute(commands) || r.front_dirty() {
@@ -235,8 +245,11 @@ impl Glide {
         let r = self.renderer.as_ref()?;
         Some(match buffer {
             Buffer::Front | Buffer::Back => {
-                let rgba = r.read_color(buffer);
-                self.core.lfb_lock_read(buffer, origin, ReadPixels::Color(&rgba))
+                if self.read_cache.as_ref().is_none_or(|(b, _)| *b != buffer) {
+                    self.read_cache = Some((buffer, r.read_color(buffer)));
+                }
+                let rgba = &self.read_cache.as_ref().expect("filled above").1;
+                self.core.lfb_lock_read(buffer, origin, ReadPixels::Color(rgba))
             }
             Buffer::Aux | Buffer::Depth => {
                 let depth = r.read_depth();
@@ -268,8 +281,11 @@ impl Glide {
         }
         self.flush();
         let Some(r) = &self.renderer else { return false };
-        let rgba = r.read_color(buffer);
-        self.core.lfb_read_region(&rgba, x, y, width, height, stride, dst);
+        if self.read_cache.as_ref().is_none_or(|(b, _)| *b != buffer) {
+            self.read_cache = Some((buffer, r.read_color(buffer)));
+        }
+        let rgba = &self.read_cache.as_ref().expect("filled above").1;
+        self.core.lfb_read_region(rgba, x, y, width, height, stride, dst);
         true
     }
 

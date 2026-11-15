@@ -119,6 +119,27 @@ pub struct Gpu {
     pub queue: wgpu::Queue,
 }
 
+/// No driver debug output or validation unless asked for with `WGPU_DEBUG=1`
+/// or `WGPU_VALIDATION=1`: debug builds otherwise flood the log with driver
+/// performance notes.
+pub fn instance_flags() -> wgpu::InstanceFlags {
+    wgpu::InstanceFlags::empty().with_env()
+}
+
+/// Applies rustyglide's instance settings: [`instance_flags`], and every
+/// backend when `WGPU_BACKEND` names none wgpu knows (such as `dx` for `dx12`),
+/// instead of none at all.
+pub fn configure(descriptor: &mut wgpu::InstanceDescriptor) {
+    descriptor.flags = instance_flags();
+    if descriptor.backends.is_empty() {
+        log::error!(
+            "WGPU_BACKEND={:?} names no backend; use vulkan, dx12, metal or gl. Trying all.",
+            std::env::var("WGPU_BACKEND").unwrap_or_default()
+        );
+        descriptor.backends = wgpu::Backends::all();
+    }
+}
+
 impl Gpu {
     /// Picks an adapter (compatible with `surface` when given) and opens a device.
     /// When the preferred adapter cannot open a device (broken drivers, a
@@ -167,7 +188,9 @@ impl Gpu {
 
     /// A device without a window, for tests and off-screen use.
     pub fn headless() -> Result<Self, Error> {
-        Self::new(wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env()), None)
+        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+        configure(&mut descriptor);
+        Self::new(wgpu::Instance::new(descriptor), None)
     }
 }
 
