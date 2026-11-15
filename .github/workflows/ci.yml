@@ -108,10 +108,11 @@ jobs:
         if: matrix.target == 'i686-pc-windows-msvc'
         run: |
           objdump="$(rustc --print sysroot)/lib/rustlib/x86_64-pc-windows-msvc/bin/llvm-objdump.exe"
-          exports="$("$objdump" -p "target/${{ matrix.target }}/debug/glide2x.dll")"
+          exports="$("$objdump" -p "target/${{ matrix.target }}/debug/glide2x.dll" | tr -d '\r')"
+          grep -m 5 '_gr' <<<"$exports" || true
           missing=0
           while read -r name bytes; do
             [[ -z "$name" || "$name" == \#* ]] && continue
-            grep -q "_${name}@${bytes}\$" <<<"$exports" || { echo "missing export _${name}@${bytes}"; missing=1; }
-          done < crates/glide2x/exports.txt
+            grep -qE "(^|[[:space:]])_${name}@${bytes}([[:space:]]|\$)" <<<"$exports" || { echo "missing export _${name}@${bytes}"; missing=1; }
+          done < <(tr -d '\r' < crates/glide2x/exports.txt)
           exit $missing
