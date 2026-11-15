@@ -13,7 +13,9 @@ struct FileLog {
 
 impl log::Log for FileLog {
     fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
-        metadata.level() <= self.level
+        // naga traces every shader-compiler step at debug level; keep its warnings only.
+        let limit = if metadata.target().starts_with("naga") { log::Level::Warn } else { log::Level::Trace };
+        metadata.level() <= self.level && metadata.level() <= limit
     }
 
     fn log(&self, record: &log::Record<'_>) {
