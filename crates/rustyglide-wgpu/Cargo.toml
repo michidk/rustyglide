@@ -1,0 +1,18 @@
+[package]
+name = "rustyglide-wgpu"
+description = "wgpu renderer for rustyglide: the Voodoo pixel pipeline in WGSL"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+rustyglide-core.workspace = true
+wgpu.workspace = true
+pollster.workspace = true
+log.workspace = true
+bytemuck.workspace = true
+
+[lints]
+workspace = true

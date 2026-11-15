@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/rustyglide-core"]
+members = ["crates/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -13,7 +13,7 @@ repository = "https://github.com/michidk/rustyglide"
 rustyglide-core = { path = "crates/rustyglide-core" }
 rustyglide-wgpu = { path = "crates/rustyglide-wgpu" }
 rustyglide = { path = "crates/rustyglide" }
-wgpu = { version = "30", default-features = false, features = ["std", "wgsl", "vulkan", "metal", "dx12", "gles"] }
+wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "wgsl", "vulkan", "metal", "dx12", "gles"] }
 raw-window-handle = "0.6"
 pollster = "0.4"
 log = "0.4"

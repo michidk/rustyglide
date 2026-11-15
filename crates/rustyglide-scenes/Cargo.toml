@@ -1,0 +1,16 @@
+[package]
+name = "rustyglide-scenes"
+description = "Feature scenes and golden-image tests for rustyglide"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+rustyglide.workspace = true
+png.workspace = true
+
+[lints]
+workspace = true

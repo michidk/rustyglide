@@ -1030,6 +1030,7 @@ impl Context {
         let pipeline = pipeline.then(|| {
             let mut state = self.shader_state(&[None, None]);
             state.flags[0] |= flag::LFB | flag::LFB_PIPELINE | if has_depth { flag::LFB_DEPTH } else { 0 };
+            state.bias[3] = self.lfb_format.constant_depth as f32 / 65535.0;
             (self.pipeline_key(), state)
         });
         let scissor = if pipeline.is_some() { self.scissor() } else { Rect { x: 0, y: 0, width: self.width, height: self.height } };
