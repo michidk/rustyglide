@@ -102,7 +102,8 @@ impl TextureCache {
     pub fn invalidate(&mut self, tmu: Tmu, written: Range<u32>) -> Vec<TextureId> {
         let mut gone = Vec::new();
         self.entries.retain(|key, entry| {
-            let hit = key.tmu as usize == tmu.index() && entry.range.start < written.end && written.start < entry.range.end;
+            let hit =
+                key.tmu as usize == tmu.index() && entry.range.start < written.end && written.start < entry.range.end;
             if hit {
                 gone.push(entry.id);
             }

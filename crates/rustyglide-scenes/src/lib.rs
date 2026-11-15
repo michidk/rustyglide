@@ -20,6 +20,25 @@ pub struct Scene {
     pub draw: fn(&mut Glide),
 }
 
+/// Whether GPU tests must run. Without it they are skipped on machines with
+/// no GPU adapter; CI and `dev/scripts/gpu-test.sh` set it.
+pub fn gpu_required() -> bool {
+    std::env::var("RUSTYGLIDE_REQUIRE_GPU").is_ok_and(|v| v == "1")
+}
+
+/// Opens a headless Glide, or `None` (after printing why) when there is no
+/// GPU and none is required.
+pub fn open_or_skip() -> Option<Glide> {
+    match open() {
+        Ok(glide) => Some(glide),
+        Err(e) if !gpu_required() => {
+            eprintln!("skipped: no GPU ({e})");
+            None
+        }
+        Err(e) => panic!("no GPU although RUSTYGLIDE_REQUIRE_GPU=1: {e}"),
+    }
+}
+
 /// Opens a headless Glide of [`SIZE`].
 pub fn open() -> Result<Glide, rustyglide::Error> {
     let mut glide = Glide::new(Settings::default());
@@ -27,11 +46,10 @@ pub fn open() -> Result<Glide, rustyglide::Error> {
     Ok(glide)
 }
 
-/// Renders a scene and returns the back buffer as RGBA8.
-pub fn render(scene: &Scene) -> Result<Vec<u8>, rustyglide::Error> {
-    let mut glide = open()?;
-    (scene.draw)(&mut glide);
-    Ok(glide.read_pixels(Buffer::Back))
+/// Renders a scene into `glide` and returns the back buffer as RGBA8.
+pub fn render(glide: &mut Glide, scene: &Scene) -> Vec<u8> {
+    (scene.draw)(glide);
+    glide.read_pixels(Buffer::Back)
 }
 
 /// A vertex with position, color and 1/w = 1.

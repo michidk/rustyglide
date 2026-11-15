@@ -99,7 +99,10 @@ impl TexCombine {
     pub fn uses_other(&self) -> bool {
         let reads = |function: CombineFunction, factor: CombineFactor| {
             !matches!(function, CombineFunction::Zero | CombineFunction::Local | CombineFunction::LocalAlpha)
-                && !matches!(function, CombineFunction::ScaleMinusLocalAddLocal | CombineFunction::ScaleMinusLocalAddLocalAlpha)
+                && !matches!(
+                    function,
+                    CombineFunction::ScaleMinusLocalAddLocal | CombineFunction::ScaleMinusLocalAddLocalAlpha
+                )
                 || matches!(factor, CombineFactor::OtherAlpha | CombineFactor::OneMinusOtherAlpha)
         };
         reads(self.rgb_function, self.rgb_factor) || reads(self.alpha_function, self.alpha_factor)

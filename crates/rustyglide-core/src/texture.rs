@@ -59,10 +59,8 @@ pub fn level_in_mask(lod: Lod, even_odd: u32) -> bool {
 
 /// `grTexCalcMemRequired` / `grTexTextureMemRequired`.
 pub fn mem_required(small: Lod, large: Lod, aspect: Aspect, format: TextureFormat, even_odd: u32) -> u32 {
-    let texels: u32 = lods(large, small)
-        .filter(|&l| level_in_mask(l, even_odd))
-        .map(|l| level_mem_texels(l, aspect))
-        .sum();
+    let texels: u32 =
+        lods(large, small).filter(|&l| level_in_mask(l, even_odd)).map(|l| level_mem_texels(l, aspect)).sum();
     (texels * format.bytes_per_texel() + 7) & !7
 }
 
@@ -317,10 +315,7 @@ mod tests {
         // 8-bit 1x1 still takes 4 texels, rounded to 8 bytes.
         assert_eq!(mem_required(Lod::L1, Lod::L1, Aspect::A1x1, TextureFormat::P8, level_mask::BOTH), 8);
         // Odd levels only of 256..64: just 128.
-        assert_eq!(
-            mem_required(Lod::L64, Lod::L256, Aspect::A1x1, TextureFormat::P8, level_mask::ODD),
-            0x4000
-        );
+        assert_eq!(mem_required(Lod::L64, Lod::L256, Aspect::A1x1, TextureFormat::P8, level_mask::ODD), 0x4000);
     }
 
     #[test]
@@ -354,7 +349,7 @@ mod tests {
         decode(TextureFormat::Ap88, &0x8005u16.to_le_bytes(), 1, &tables, &mut out);
         assert_eq!(out, [0x10, 0x20, 0x30, 0x80]);
         out.clear();
-        decode(TextureFormat::Rgb332, &[0b111_000_11], 1, &tables, &mut out);
+        decode(TextureFormat::Rgb332, &[0b1110_0011], 1, &tables, &mut out);
         assert_eq!(out, [255, 0, 255, 255]);
         out.clear();
         decode(TextureFormat::Alpha8, &[0x40], 1, &tables, &mut out);

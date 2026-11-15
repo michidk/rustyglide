@@ -122,7 +122,10 @@ pub enum Command {
         write_depth: bool,
     },
     /// Adds a texture: RGBA8 levels, largest first.
-    CreateTexture { id: TextureId, levels: Vec<(u32, u32, Vec<u8>)> },
+    CreateTexture {
+        id: TextureId,
+        levels: Vec<(u32, u32, Vec<u8>)>,
+    },
     DestroyTexture(TextureId),
     /// Pixels written through the LFB: RGBA8 rows (top first) of `rect`,
     /// a mask of written pixels and optional 16-bit depth values. With
@@ -138,5 +141,7 @@ pub enum Command {
         scissor: Rect,
     },
     /// Shows the back buffer: buffers are exchanged.
-    Swap { interval: u32 },
+    Swap {
+        interval: u32,
+    },
 }

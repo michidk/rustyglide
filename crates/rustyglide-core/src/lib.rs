@@ -184,8 +184,12 @@ struct BatchParams {
     scissor: Rect,
 }
 
-const DEFAULT_BLEND: Blend =
-    Blend { rgb_src: BlendFactor::One, rgb_dst: BlendFactor::Zero, alpha_src: BlendFactor::One, alpha_dst: BlendFactor::Zero };
+const DEFAULT_BLEND: Blend = Blend {
+    rgb_src: BlendFactor::One,
+    rgb_dst: BlendFactor::Zero,
+    alpha_src: BlendFactor::One,
+    alpha_dst: BlendFactor::Zero,
+};
 
 impl Context {
     pub fn new(config: Config) -> Self {
@@ -831,9 +835,8 @@ impl Context {
                 tex_scale[i * 2 + 1] = long / (256.0 * h as f32);
             }
         }
-        let detail = |i: usize| {
-            self.tmus.get(i).map_or([0.0; 4], |t| [t.detail.0 as f32, t.detail.1 as f32, t.detail.2, 0.0])
-        };
+        let detail =
+            |i: usize| self.tmus.get(i).map_or([0.0; 4], |t| [t.detail.0 as f32, t.detail.1 as f32, t.detail.2, 0.0]);
         let lod_bias = |i: usize| self.tmus.get(i).map_or(0.0, |t| t.lod_bias);
         let mut fog_table = [0u32; 16];
         for (i, word) in fog_table.iter_mut().enumerate() {
@@ -868,12 +871,8 @@ impl Context {
         } else {
             0
         };
-        let key = texcache::Key {
-            tmu: tmu as u8,
-            source,
-            multibase: t.multibase.then_some(t.multibase_address),
-            table_hash,
-        };
+        let key =
+            texcache::Key { tmu: tmu as u8, source, multibase: t.multibase.then_some(t.multibase_address), table_hash };
         let force = self.config.force_filter;
         let mipmap = if self.config.disable_mipmaps { MipMapMode::Disable } else { t.mipmap };
         let sampler = SamplerKey {
@@ -951,13 +950,16 @@ impl Context {
                     ReadPixels::Color(rgba) => {
                         rgba.get(i * 4..i * 4 + 4).map_or(0, |p| lfb::rgba_to_565([p[0], p[1], p[2], p[3]]))
                     }
-                    ReadPixels::Depth(depth) => depth.get(i).map_or(0, |d| (d.clamp(0.0, 1.0) * 65535.0).round() as u16),
+                    ReadPixels::Depth(depth) => {
+                        depth.get(i).map_or(0, |d| (d.clamp(0.0, 1.0) * 65535.0).round() as u16)
+                    }
                 };
                 data[y * stride + x * 2..y * stride + x * 2 + 2].copy_from_slice(&v.to_le_bytes());
             }
         }
         let mut lock = Lock { buffer, origin, pipeline: false, format: self.lfb_format, data, stride };
-        let info = LockInfo { data: lock.data.as_mut_ptr(), stride: stride as u32, write_mode: LfbWriteMode::W565, origin };
+        let info =
+            LockInfo { data: lock.data.as_mut_ptr(), stride: stride as u32, write_mode: LfbWriteMode::W565, origin };
         self.read_lock = Some(lock);
         info
     }
@@ -982,14 +984,21 @@ impl Context {
         }
         let Some(lock) = self.write_lock.take() else { return false };
         let pixels = lock.format.decode(&lock.data, lock.stride, self.width, self.height);
-        let rows: Vec<Vec<Option<lfb::WrittenPixel>>> =
-            pixels.chunks(self.width as usize).map(<[_]>::to_vec).collect();
+        let rows: Vec<Vec<Option<lfb::WrittenPixel>>> = pixels.chunks(self.width as usize).map(<[_]>::to_vec).collect();
         let rows: Vec<_> = if lock.origin == Origin::LowerLeft { rows.into_iter().rev().collect() } else { rows };
         self.emit_lfb_write(lock.buffer, 0, 0, self.width, &rows.concat(), lock.pipeline);
         true
     }
 
-    fn emit_lfb_write(&mut self, buffer: Buffer, x: u32, y: u32, width: u32, pixels: &[Option<lfb::WrittenPixel>], pipeline: bool) {
+    fn emit_lfb_write(
+        &mut self,
+        buffer: Buffer,
+        x: u32,
+        y: u32,
+        width: u32,
+        pixels: &[Option<lfb::WrittenPixel>],
+        pipeline: bool,
+    ) {
         // Shrink to the written pixels' bounding box.
         let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0, 0);
         for (i, p) in pixels.iter().enumerate() {
@@ -1033,7 +1042,11 @@ impl Context {
             state.bias[3] = self.lfb_format.constant_depth as f32 / 65535.0;
             (self.pipeline_key(), state)
         });
-        let scissor = if pipeline.is_some() { self.scissor() } else { Rect { x: 0, y: 0, width: self.width, height: self.height } };
+        let scissor = if pipeline.is_some() {
+            self.scissor()
+        } else {
+            Rect { x: 0, y: 0, width: self.width, height: self.height }
+        };
         self.commands.push(Command::LfbWrite {
             buffer: if buffer == Buffer::Front { Buffer::Front } else { Buffer::Back },
             rect,
@@ -1058,7 +1071,32 @@ impl Context {
         stride: i32,
         data: &[u8],
     ) -> bool {
-        let format = if src_format == lfb_src::RLE16 { 0 } else { src_format };
+        if src_format == lfb_src::RLE16 {
+            // Runs of `length << 16 | color565`, as guEncodeRLE16 writes them.
+            let total = (width * height) as usize;
+            let mut plain = Vec::with_capacity(total * 2);
+            for run in data.chunks_exact(4) {
+                let run = u32::from_le_bytes([run[0], run[1], run[2], run[3]]);
+                for _ in 0..(run >> 16) {
+                    plain.extend_from_slice(&(run as u16).to_le_bytes());
+                }
+                if plain.len() >= total * 2 {
+                    break;
+                }
+            }
+            plain.resize(total * 2, 0);
+            return self.lfb_write_region(
+                buffer,
+                x,
+                y,
+                LfbWriteMode::W565 as u32,
+                width,
+                height,
+                width as i32 * 2,
+                &plain,
+            );
+        }
+        let format = src_format;
         let Ok(mode) = LfbWriteMode::try_from(format) else { return false };
         let bpp = mode.bytes_per_pixel() as usize;
         let mut pixels = Vec::with_capacity((width * height) as usize);
@@ -1082,6 +1120,7 @@ impl Context {
     }
 
     /// Packs read-back pixels of a region as 565 rows into `dst` (`grLfbReadRegion`).
+    #[allow(clippy::too_many_arguments)]
     pub fn lfb_read_region(&self, rgba: &[u8], x: u32, y: u32, width: u32, height: u32, stride: usize, dst: &mut [u8]) {
         let w = self.width as usize;
         for row in 0..height as usize {

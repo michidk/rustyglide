@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 root=$PWD
 docker image inspect rustyglide-test:dev >/dev/null 2>&1 || docker build -q -t rustyglide-test:dev dev/docker
-mapfile -t binaries < <(cargo test -p rustyglide-scenes --no-run --message-format=json 2>/dev/null \
+mapfile -t binaries < <(cargo test -p rustyglide-scenes -p glide2x --no-run --message-format=json 2>/dev/null \
     | python3 -c 'import json,sys
 for line in sys.stdin:
     m = json.loads(line)
@@ -19,7 +19,7 @@ for bin in "${binaries[@]}"; do
     cp "$bin" dev/out/
     name=$(basename "$bin")
     docker run --rm --user "$(id -u):$(id -g)" -v "$root:$root" -w "$root" \
-        -e RUSTYGLIDE_BLESS -e WGPU_BACKEND="${WGPU_BACKEND:-vulkan}" -e RUST_BACKTRACE=1 \
+        -e RUSTYGLIDE_BLESS -e RUSTYGLIDE_REQUIRE_GPU=1 -e WGPU_BACKEND="${WGPU_BACKEND:-vulkan}" -e RUST_BACKTRACE=1 \
         rustyglide-test:dev "$root/dev/out/$name" "$@" || status=1
 done
 rm -rf dev/out

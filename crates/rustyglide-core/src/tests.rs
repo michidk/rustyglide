@@ -61,12 +61,7 @@ fn lower_left_origin_flips_y() {
 #[test]
 fn texture_download_invalidates_cached_texture() {
     let mut c = open();
-    let info = TexInfo {
-        small_lod: Lod::L8,
-        large_lod: Lod::L8,
-        aspect: Aspect::A1x1,
-        format: TextureFormat::Rgb565,
-    };
+    let info = TexInfo { small_lod: Lod::L8, large_lod: Lod::L8, aspect: Aspect::A1x1, format: TextureFormat::Rgb565 };
     c.tex_download_mipmap(Tmu::Tmu0, 0, level_mask::BOTH, info, &[0xff; 128]);
     c.tex_source(Tmu::Tmu0, 0, level_mask::BOTH, info);
     c.gu_tex_combine_function(Tmu::Tmu0, TextureCombineFnc::Decal);

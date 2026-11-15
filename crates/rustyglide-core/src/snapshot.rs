@@ -38,7 +38,10 @@ pub fn save(c: &Context, out: &mut [u8]) {
         c.alpha.pack(),
         c.delta0 as u32 | (c.alpha_controls_itrgb as u32) << 1,
         c.constant,
-        c.blend.rgb_src as u32 | (c.blend.rgb_dst as u32) << 8 | (c.blend.alpha_src as u32) << 16 | (c.blend.alpha_dst as u32) << 24,
+        c.blend.rgb_src as u32
+            | (c.blend.rgb_dst as u32) << 8
+            | (c.blend.alpha_src as u32) << 16
+            | (c.blend.alpha_dst as u32) << 24,
         c.alpha_test as u32 | (c.alpha_ref as u32) << 8 | (c.chroma as u32) << 16,
         c.chroma_value,
         c.clip.0 | c.clip.1 << 16,
@@ -72,7 +75,11 @@ pub fn save(c: &Context, out: &mut [u8]) {
                 | (t.ncc_select as u32) << 7,
         );
         w.push(t.lod_bias.to_bits());
-        w.push((t.detail.0 as i8 as u8 as u32) | (t.detail.1 as u32) << 8 | ((t.detail.2.clamp(0.0, 1.0) * 255.0) as u32) << 16);
+        w.push(
+            (t.detail.0 as i8 as u8 as u32)
+                | (t.detail.1 as u32) << 8
+                | ((t.detail.2.clamp(0.0, 1.0) * 255.0) as u32) << 16,
+        );
         match t.source {
             Some(s) => {
                 w.push(s.address);

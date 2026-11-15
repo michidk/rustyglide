@@ -338,7 +338,8 @@ fn mipmap(glide: &mut Glide) {
 
 fn lfb_write(glide: &mut Glide) {
     glide.buffer_clear(0x00000040, 0, 0);
-    let Some(lock) = glide.lfb_lock(lock::WRITE_ONLY, Buffer::Back, LfbWriteMode::W565, Origin::LowerLeft, false) else {
+    let Some(lock) = glide.lfb_lock(lock::WRITE_ONLY, Buffer::Back, LfbWriteMode::W565, Origin::LowerLeft, false)
+    else {
         return;
     };
     for y in 0..40usize {

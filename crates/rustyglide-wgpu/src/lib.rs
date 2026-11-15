@@ -207,18 +207,33 @@ fn quad(rect: Rect, tex: Option<(f32, f32)>) -> [DrawVertex; 6] {
         ..Default::default()
     };
     let (u1, v1) = tex.unwrap_or((0.0, 0.0));
-    [v(x0, y0, 0.0, 0.0), v(x1, y0, u1, 0.0), v(x1, y1, u1, v1), v(x0, y0, 0.0, 0.0), v(x1, y1, u1, v1), v(x0, y1, 0.0, v1)]
+    [
+        v(x0, y0, 0.0, 0.0),
+        v(x1, y0, u1, 0.0),
+        v(x1, y1, u1, v1),
+        v(x0, y0, 0.0, 0.0),
+        v(x1, y1, u1, v1),
+        v(x0, y1, 0.0, v1),
+    ]
 }
 
 impl Renderer {
     /// A renderer for a Glide screen of `size` pixels drawn at `scale` times
     /// that size. `surface` is the window to present to, if any.
-    pub fn new(gpu: &Gpu, surface: Option<wgpu::Surface<'static>>, size: (u32, u32), scale: u32) -> Result<Self, Error> {
+    pub fn new(
+        gpu: &Gpu,
+        surface: Option<wgpu::Surface<'static>>,
+        size: (u32, u32),
+        scale: u32,
+    ) -> Result<Self, Error> {
         let device = gpu.device.clone();
         let queue = gpu.queue.clone();
         let scale = scale.max(1);
         let scaled = (size.0 * scale, size.1 * scale);
-        let color = [target_texture(&device, "front", scaled, COLOR_FORMAT), target_texture(&device, "back", scaled, COLOR_FORMAT)];
+        let color = [
+            target_texture(&device, "front", scaled, COLOR_FORMAT),
+            target_texture(&device, "back", scaled, COLOR_FORMAT),
+        ];
         let color_views = [color[0].create_view(&Default::default()), color[1].create_view(&Default::default())];
         let depth = target_texture(&device, "depth", scaled, DEPTH_FORMAT);
         let depth_view = depth.create_view(&Default::default());
@@ -370,7 +385,10 @@ impl Renderer {
                     view,
                     depth_slice: None,
                     resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_view,
@@ -570,8 +588,7 @@ impl Renderer {
                 }
                 Command::DestroyTexture(id) => {
                     self.textures.remove(&id);
-                    self.bind_groups
-                        .retain(|k, _| !k.iter().flatten().any(|b| b.texture == id));
+                    self.bind_groups.retain(|k, _| !k.iter().flatten().any(|b| b.texture == id));
                 }
                 Command::Draw(DrawBatch { buffer, pipeline, state, textures, scissor, vertices: v }) => {
                     let target = self.target_index(buffer);
@@ -857,7 +874,10 @@ impl Renderer {
                     view: &view,
                     depth_slice: None,
                     resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
                 })],
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
@@ -964,11 +984,7 @@ impl Presenter {
                 module: &module,
                 entry_point: Some("fs_present"),
                 compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: None,
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
+                targets: &[Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL })],
             }),
             multiview_mask: None,
             cache: None,

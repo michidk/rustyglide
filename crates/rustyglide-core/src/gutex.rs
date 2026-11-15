@@ -4,9 +4,9 @@
 //! texture with a `GrMipMapInfo` the game can read through a pointer, so the
 //! records keep the C layout and a stable address.
 
+use crate::Context;
 use crate::texture::{self, NccData as Ncc, TexInfo};
 use crate::types::*;
-use crate::Context;
 use std::ffi::c_void;
 
 /// `GuNccTable` in its C layout.
@@ -24,7 +24,8 @@ impl GuNccTable {
         let mut out = Self { y_rgb: t.y, i_rgb: t.i, q_rgb: t.q, packed_data: [0; 12] };
         for k in 0..4 {
             out.packed_data[k] = u32::from_le_bytes([t.y[k * 4], t.y[k * 4 + 1], t.y[k * 4 + 2], t.y[k * 4 + 3]]);
-            let pack = |v: [i16; 3]| ((v[0] as u32 & 0x1ff) << 18) | ((v[1] as u32 & 0x1ff) << 9) | (v[2] as u32 & 0x1ff);
+            let pack =
+                |v: [i16; 3]| ((v[0] as u32 & 0x1ff) << 18) | ((v[1] as u32 & 0x1ff) << 9) | (v[2] as u32 & 0x1ff);
             out.packed_data[k + 4] = pack(t.i[k]);
             out.packed_data[k + 8] = pack(t.q[k]);
         }
@@ -85,6 +86,8 @@ pub struct Attributes {
 
 #[derive(Default)]
 pub struct Manager {
+    /// Boxed so each record keeps its address: games hold pointers to them.
+    #[allow(clippy::vec_box)]
     infos: Vec<Box<GrMipMapInfo>>,
     free: [u32; 2],
     current: [Option<u32>; 2],
@@ -113,7 +116,14 @@ impl Context {
     }
 
     /// `guTexAllocateMemory`. Returns a handle or [`NULL_MIPMAP`].
-    pub fn gu_tex_allocate(&mut self, tmu: Tmu, even_odd: u32, attrs: Attributes, lod_bias: f32, trilinear: bool) -> u32 {
+    pub fn gu_tex_allocate(
+        &mut self,
+        tmu: Tmu,
+        even_odd: u32,
+        attrs: Attributes,
+        lod_bias: f32,
+        trilinear: bool,
+    ) -> u32 {
         let size = texture::mem_required(attrs.small_lod, attrs.large_lod, attrs.aspect, attrs.format, even_odd);
         let total = self.tex_max_address(tmu) + 8;
         let Some(free) = self.gutex.free.get_mut(tmu.index()) else { return NULL_MIPMAP };

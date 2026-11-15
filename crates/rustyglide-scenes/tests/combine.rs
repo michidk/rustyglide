@@ -6,7 +6,7 @@ use rustyglide::texture::TexInfo;
 use rustyglide::types::*;
 use rustyglide::{GrVertex, combine};
 use rustyglide_scenes::reference::{Inputs, shade};
-use rustyglide_scenes::{SIZE, open, scenes};
+use rustyglide_scenes::{SIZE, open_or_skip, scenes};
 
 const FUNCTIONS: [CombineFunction; 11] = [
     CombineFunction::Zero,
@@ -73,9 +73,10 @@ fn sweep(alpha_sweep: bool) {
     };
     let mut failures = Vec::new();
     for chunk in combos.chunks(per_frame) {
-        let mut glide = open().expect("a GPU for the combine sweep");
+        let Some(mut glide) = open_or_skip() else { return };
         // An AP88 texture gives an exact 8-bit texel: RGB from the palette, alpha from the high byte.
-        let info = TexInfo { small_lod: Lod::L8, large_lod: Lod::L8, aspect: Aspect::A1x1, format: TextureFormat::Ap88 };
+        let info =
+            TexInfo { small_lod: Lod::L8, large_lod: Lod::L8, aspect: Aspect::A1x1, format: TextureFormat::Ap88 };
         let palette = [(TEXEL[0] as u32) << 16 | (TEXEL[1] as u32) << 8 | TEXEL[2] as u32; 256];
         glide.tex_download_palette(Tmu::Tmu0, &palette, 0);
         let texel = ((TEXEL[3] as u16) << 8).to_le_bytes();
@@ -84,7 +85,13 @@ fn sweep(alpha_sweep: bool) {
         glide.color_mask(true, true);
         glide.constant_color(u32::from_be_bytes([CONSTANT[3], CONSTANT[0], CONSTANT[1], CONSTANT[2]]));
         let fixed = combine::DEFAULT_COLOR;
-        let fixed_alpha = Combine::new(CombineFunction::Local, CombineFactor::Zero, CombineLocal::Constant, CombineOther::Constant, false);
+        let fixed_alpha = Combine::new(
+            CombineFunction::Local,
+            CombineFactor::Zero,
+            CombineLocal::Constant,
+            CombineOther::Constant,
+            false,
+        );
         for (n, c) in chunk.iter().enumerate() {
             let (color, alpha) = if alpha_sweep { (fixed, *c) } else { (*c, fixed_alpha) };
             scenes::set_combine(&mut glide, color, alpha);
@@ -120,7 +127,13 @@ fn sweep(alpha_sweep: bool) {
             }
         }
     }
-    assert!(failures.is_empty(), "{} of {} combinations differ:\n{}", failures.len(), combos.len(), failures[..failures.len().min(20)].join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {} combinations differ:\n{}",
+        failures.len(),
+        combos.len(),
+        failures[..failures.len().min(20)].join("\n")
+    );
 }
 
 #[test]

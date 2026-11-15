@@ -16,8 +16,8 @@
 //! ```
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle};
-pub use rustyglide_core::*;
 use rustyglide_core::types::{Buffer, ColorFormat, FilterMode, LfbWriteMode, Origin, Resolution, lock};
+pub use rustyglide_core::*;
 pub use rustyglide_wgpu::{Error, PresentFrame, PresentHook, wgpu};
 use rustyglide_wgpu::{Gpu, Renderer};
 

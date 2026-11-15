@@ -3,7 +3,7 @@
 //! `RUSTYGLIDE_BLESS=1` writes the current output as the new golden image.
 //! A failing scene leaves `<name>.actual.png` next to its golden file.
 
-use rustyglide_scenes::{SIZE, differing_pixels, read_png, render, scenes::ALL, write_png};
+use rustyglide_scenes::{SIZE, differing_pixels, open_or_skip, read_png, render, scenes::ALL, write_png};
 use std::path::PathBuf;
 
 /// Channel difference ignored, and the share of pixels allowed to exceed it
@@ -17,10 +17,8 @@ fn scenes_match_golden_images() {
     let bless = std::env::var("RUSTYGLIDE_BLESS").is_ok_and(|v| v == "1");
     let mut failures = Vec::new();
     for scene in ALL {
-        let pixels = match render(scene) {
-            Ok(p) => p,
-            Err(e) => panic!("no GPU for scene tests: {e}"),
-        };
+        let Some(mut glide) = open_or_skip() else { return };
+        let pixels = render(&mut glide, scene);
         let golden = dir.join(format!("{}.png", scene.name));
         if bless {
             write_png(&golden, SIZE, &pixels).expect("write golden image");

@@ -36,10 +36,16 @@ fn parts(f: CombineFunction) -> Parts {
                 | F::ScaleMinusLocalAddLocal
                 | F::ScaleMinusLocalAddLocalAlpha
         ),
-        add_local: matches!(f, F::Local | F::ScaleOtherAddLocal | F::ScaleOtherMinusLocalAddLocal | F::ScaleMinusLocalAddLocal),
+        add_local: matches!(
+            f,
+            F::Local | F::ScaleOtherAddLocal | F::ScaleOtherMinusLocalAddLocal | F::ScaleMinusLocalAddLocal
+        ),
         add_local_alpha: matches!(
             f,
-            F::LocalAlpha | F::ScaleOtherAddLocalAlpha | F::ScaleOtherMinusLocalAddLocalAlpha | F::ScaleMinusLocalAddLocalAlpha
+            F::LocalAlpha
+                | F::ScaleOtherAddLocalAlpha
+                | F::ScaleOtherMinusLocalAddLocalAlpha
+                | F::ScaleMinusLocalAddLocalAlpha
         ),
     }
 }
