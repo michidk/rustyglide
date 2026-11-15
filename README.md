@@ -68,7 +68,7 @@ Settings come from the environment:
 
 `just gates` runs what CI runs: formatting, clippy, `cargo deny`, the core
 boundary check, unit tests and the GPU tests. GPU tests run on lavapipe
-(software Vulkan); without a local Vulkan driver `dev/scripts/gpu-test.sh`
+(software Vulkan); without a local Vulkan driver `bash dev/scripts/gpu-test.sh`
 runs them in Docker. They skip on machines without a GPU unless
 `RUSTYGLIDE_REQUIRE_GPU=1`.
 

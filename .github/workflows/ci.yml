@@ -41,7 +41,7 @@ jobs:
         with:
           tool: cargo-deny
       - name: Format, clippy, core boundary and licences
-        run: dev/scripts/gates.sh lints
+        run: bash dev/scripts/gates.sh lints
 
   test:
     name: Test (Linux, lavapipe)

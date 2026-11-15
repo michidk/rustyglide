@@ -56,7 +56,7 @@ jobs:
         env:
           RUSTYGLIDE_REQUIRE_GPU: '1'
           WGPU_BACKEND: vulkan
-        run: dev/scripts/gates.sh lints && cargo test --workspace --locked
+        run: bash dev/scripts/gates.sh lints && cargo test --workspace --locked
 
   build:
     name: Package (${{ matrix.target }})

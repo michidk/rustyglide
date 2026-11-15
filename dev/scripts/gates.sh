@@ -10,7 +10,7 @@ esac
 if [[ "$stage" == all || "$stage" == lints ]]; then
     cargo fmt --all -- --check
     cargo clippy --workspace --all-targets --locked -- -D warnings
-    dev/scripts/check-core-boundary.sh
+    bash dev/scripts/check-core-boundary.sh
     if command -v cargo-deny >/dev/null; then cargo deny check; else echo "gates: cargo-deny not installed, skipped"; fi
 fi
 if [[ "$stage" == all || "$stage" == test ]]; then
@@ -21,7 +21,7 @@ if [[ "$stage" == all || "$stage" == gpu ]]; then
     if [[ -n "${RUSTYGLIDE_REQUIRE_GPU:-}" ]]; then
         cargo test --workspace --locked
     else
-        dev/scripts/gpu-test.sh
+        bash dev/scripts/gpu-test.sh
     fi
 fi
 echo "gates: green"
