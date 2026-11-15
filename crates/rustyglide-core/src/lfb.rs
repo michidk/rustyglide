@@ -118,12 +118,12 @@ impl WriteFormat {
 /// Fills a write-lock buffer with the sentinel for `mode`.
 pub fn fill_sentinel(data: &mut [u8], mode: LfbWriteMode) {
     if mode.bytes_per_pixel() == 2 {
-        for chunk in data.chunks_exact_mut(2) {
-            chunk.copy_from_slice(&SENTINEL16.to_le_bytes());
+        for chunk in data.as_chunks_mut::<2>().0 {
+            *chunk = SENTINEL16.to_le_bytes();
         }
     } else {
-        for chunk in data.chunks_exact_mut(4) {
-            chunk.copy_from_slice(&SENTINEL32.to_le_bytes());
+        for chunk in data.as_chunks_mut::<4>().0 {
+            *chunk = SENTINEL32.to_le_bytes();
         }
     }
 }
