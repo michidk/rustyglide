@@ -66,12 +66,27 @@ Settings come from the environment:
 |---|---|
 | `RUSTYGLIDE_SCALE` | Render at this multiple of the game's resolution (1 to 8). |
 | `RUSTYGLIDE_INTEGER_SCALE` | `1` shows the frame at the largest whole multiple that fits the window, with sharp square pixels and black borders, instead of stretching it. Use with `RUSTYGLIDE_SCALE=1` for the original resolution. |
+| `RUSTYGLIDE_SHADER` | Path to a RetroArch slang shader preset (`.slangp`), such as a CRT simulation, that draws the window image. Needs the `shaders` feature; see below. |
 | `RUSTYGLIDE_TMUS` | Texture units reported to the game (1 or 2, default 1). |
 | `RUSTYGLIDE_TEXTURE_MEMORY_MB` | Texture memory per unit (default 4). |
 | `RUSTYGLIDE_FILTER` | `point` or `bilinear` overrides the game's texture filter. |
 | `RUSTYGLIDE_NO_MIPMAPS` | `1` ignores mipmapping. |
 | `RUSTYGLIDE_LOG` | Write rustyglide's and wgpu's messages to this file (or `stderr`); `RUSTYGLIDE_LOG_LEVEL` sets `error` to `trace`. |
 | `WGPU_BACKEND` | `vulkan`, `metal`, `dx12` or `gl`. |
+
+### Shader presets
+
+Built with the `shaders` feature (`cargo build -p glide2x --features shaders`),
+rustyglide runs [RetroArch slang shader presets](https://github.com/libretro/slang-shaders)
+on the window image through [librashader](https://github.com/SnowflakePowered/librashader):
+CRT simulations such as crt-geom or crt-lottes, scanlines, NTSC filters and
+more. Download the presets and point `RUSTYGLIDE_SHADER` at a `.slangp` file.
+Use them with `RUSTYGLIDE_SCALE=1`, since CRT shaders draw one scanline per
+game line, and `RUSTYGLIDE_INTEGER_SCALE=1` for even scanlines. If a preset
+fails to load, the error is logged and the plain image is shown.
+
+The feature builds glslang and SPIRV-Cross (C++), and librashader is licensed
+MPL-2.0; default builds include neither.
 
 ## Layout
 

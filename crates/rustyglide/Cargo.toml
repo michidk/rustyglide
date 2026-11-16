@@ -16,5 +16,9 @@ rustyglide-wgpu.workspace = true
 raw-window-handle.workspace = true
 log = { workspace = true, features = ["std"] }
 
+[features]
+# RetroArch slang shader presets on the window image (RUSTYGLIDE_SHADER).
+shaders = ["rustyglide-wgpu/shaders"]
+
 [lints]
 workspace = true

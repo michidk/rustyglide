@@ -111,6 +111,9 @@ pub struct Renderer {
     front_dirty: bool,
     /// Present at whole multiples of the frame size with nearest filtering.
     pub integer_scale: bool,
+    /// A shader preset drawing the window image, and its frame counter.
+    #[cfg(feature = "shaders")]
+    shader: Option<(librashader::runtime::wgpu::FilterChain, usize)>,
 }
 
 /// A wgpu instance, adapter, device and queue.
@@ -376,6 +379,8 @@ impl Renderer {
             presenter,
             front_dirty: false,
             integer_scale: false,
+            #[cfg(feature = "shaders")]
+            shader: None,
         };
         renderer.clear_targets();
         Ok(renderer)
@@ -887,6 +892,22 @@ impl Renderer {
     }
 
     /// Shows the front buffer in the window, then runs `hook`.
+    /// Draws the window image with a RetroArch slang shader preset
+    /// (`.slangp`), such as a CRT simulation, instead of plain scaling.
+    #[cfg(feature = "shaders")]
+    pub fn load_shader(&mut self, preset: &std::path::Path) -> Result<(), String> {
+        let chain = librashader::runtime::wgpu::FilterChain::load_from_path(
+            preset,
+            librashader::presets::ShaderFeatures::NONE,
+            &self.device,
+            &self.queue,
+            None,
+        )
+        .map_err(|e| e.to_string())?;
+        self.shader = Some((chain, 0));
+        Ok(())
+    }
+
     pub fn present(&mut self, gamma: f32, hook: Option<&mut PresentHook>) {
         self.front_dirty = false;
         let Some(p) = &mut self.presenter else { return };
@@ -934,10 +955,33 @@ impl Renderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            pass.set_pipeline(&p.pipeline);
-            pass.set_bind_group(0, &group, &[]);
-            pass.set_viewport(viewport[0], viewport[1], viewport[2].max(1.0), viewport[3].max(1.0), 0.0, 1.0);
-            pass.draw(0..3, 0..1);
+            #[cfg(feature = "shaders")]
+            let plain = self.shader.is_none();
+            #[cfg(not(feature = "shaders"))]
+            let plain = true;
+            if plain {
+                pass.set_pipeline(&p.pipeline);
+                pass.set_bind_group(0, &group, &[]);
+                pass.set_viewport(viewport[0], viewport[1], viewport[2].max(1.0), viewport[3].max(1.0), 0.0, 1.0);
+                pass.draw(0..3, 0..1);
+            }
+        }
+        #[cfg(feature = "shaders")]
+        if let Some((chain, frame_count)) = &mut self.shader {
+            use librashader::runtime::{Size, Viewport, wgpu::WgpuOutputView};
+            let size = |w: f32, h: f32| Size { width: w.max(1.0) as u32, height: h.max(1.0) as u32 };
+            let output = WgpuOutputView::new_from_raw(
+                &view,
+                size(p.config.width as f32, p.config.height as f32),
+                p.config.format,
+            );
+            let area =
+                Viewport { x: viewport[0], y: viewport[1], mvp: None, output, size: size(viewport[2], viewport[3]) };
+            *frame_count += 1;
+            if let Err(e) = chain.frame(&self.color[self.front], &area, &mut encoder, *frame_count, None) {
+                log::error!("shader preset failed, presenting without it: {e}");
+                self.shader = None;
+            }
         }
         if let Some(hook) = hook {
             hook(&mut PresentFrame {

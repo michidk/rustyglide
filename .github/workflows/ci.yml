@@ -62,7 +62,7 @@ jobs:
         env:
           RUSTYGLIDE_REQUIRE_GPU: '1'
           WGPU_BACKEND: vulkan
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --all-features --locked
       - name: Upload scene differences
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -104,6 +104,8 @@ jobs:
           shared-key: build-${{ matrix.target }}
       - name: Build
         run: cargo build --locked --workspace --target ${{ matrix.target }}
+      - name: Build with shader presets
+        run: cargo build --locked -p glide2x -p glide3x --features glide2x/shaders,glide3x/shaders --target ${{ matrix.target }}
       # Tests that need a GPU skip when the runner exposes no adapter.
       - name: Test
         if: matrix.target != 'i686-pc-windows-msvc'

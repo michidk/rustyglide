@@ -17,9 +17,31 @@ allow = [
     "Unicode-3.0",
 ]
 confidence-threshold = 0.9
+# The optional `shaders` feature only: librashader and two of its dependencies
+# are MPL-2.0, a per-file copyleft that hosts can link without relicensing.
+# Default builds contain none of them.
+exceptions = [
+    { crate = "librashader", allow = ["MPL-2.0"] },
+    { crate = "librashader-cache", allow = ["MPL-2.0"] },
+    { crate = "librashader-common", allow = ["MPL-2.0"] },
+    { crate = "librashader-pack", allow = ["MPL-2.0"] },
+    { crate = "librashader-preprocess", allow = ["MPL-2.0"] },
+    { crate = "librashader-presets", allow = ["MPL-2.0"] },
+    { crate = "librashader-reflect", allow = ["MPL-2.0"] },
+    { crate = "librashader-runtime", allow = ["MPL-2.0"] },
+    { crate = "librashader-runtime-wgpu", allow = ["MPL-2.0"] },
+    { crate = "persy", allow = ["MPL-2.0"] },
+    { crate = "smartstring", allow = ["MPL-2.0"] },
+]
 
 [advisories]
 yanked = "deny"
+ignore = [
+    # Unmaintained, not vulnerable; pulled in by librashader (`shaders` feature
+    # only) with no maintained replacement yet. Drop when librashader moves on.
+    { id = "RUSTSEC-2025-0141", reason = "bincode via librashader-cache" },
+    { id = "RUSTSEC-2026-0249", reason = "smartstring via glslang" },
+]
 
 [bans]
 multiple-versions = "allow"

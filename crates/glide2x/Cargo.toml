@@ -17,6 +17,9 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 glide-abi = { path = "../glide-abi" }
 
+[features]
+# RetroArch slang shader presets on the window image (RUSTYGLIDE_SHADER).
+shaders = ["glide-abi/shaders"]
 
 [lints]
 workspace = true
