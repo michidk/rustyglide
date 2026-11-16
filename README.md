@@ -65,6 +65,7 @@ Settings come from the environment:
 | Variable | Effect |
 |---|---|
 | `RUSTYGLIDE_SCALE` | Render at this multiple of the game's resolution (1 to 8). |
+| `RUSTYGLIDE_INTEGER_SCALE` | `1` shows the frame at the largest whole multiple that fits the window, with sharp square pixels and black borders, instead of stretching it. Use with `RUSTYGLIDE_SCALE=1` for the original resolution. |
 | `RUSTYGLIDE_TMUS` | Texture units reported to the game (1 or 2, default 1). |
 | `RUSTYGLIDE_TEXTURE_MEMORY_MB` | Texture memory per unit (default 4). |
 | `RUSTYGLIDE_FILTER` | `point` or `bilinear` overrides the game's texture filter. |

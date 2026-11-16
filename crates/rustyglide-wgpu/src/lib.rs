@@ -109,6 +109,8 @@ pub struct Renderer {
     presenter: Option<Presenter>,
     /// The front buffer was drawn to since it was last presented.
     front_dirty: bool,
+    /// Present at whole multiples of the frame size with nearest filtering.
+    pub integer_scale: bool,
 }
 
 /// A wgpu instance, adapter, device and queue.
@@ -373,6 +375,7 @@ impl Renderer {
             point_sampler,
             presenter,
             front_dirty: false,
+            integer_scale: false,
         };
         renderer.clear_targets();
         Ok(renderer)
@@ -898,6 +901,9 @@ impl Renderer {
         let view = frame.texture.create_view(&Default::default());
         let params = [1.0 / gamma.max(0.01), if p.encodes_srgb { 1.0 } else { 0.0 }, 0.0, 0.0];
         self.queue.write_buffer(&p.params, 0, bytemuck::cast_slice(&params));
+        let target = (self.size.0 * self.scale, self.size.1 * self.scale);
+        let (viewport, integer) = present_viewport((p.config.width, p.config.height), target, self.integer_scale);
+        let sampler = if integer { &self.point_sampler } else { &p.sampler };
         let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("present"),
             layout: &p.layout,
@@ -906,14 +912,10 @@ impl Renderer {
                     binding: 0,
                     resource: wgpu::BindingResource::TextureView(&self.color_views[self.front]),
                 },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&p.sampler) },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) },
                 wgpu::BindGroupEntry { binding: 2, resource: p.params.as_entire_binding() },
             ],
         });
-        let (sw, sh) = (p.config.width as f32, p.config.height as f32);
-        let aspect = self.size.0 as f32 / self.size.1 as f32;
-        let (vw, vh) = if sw / sh > aspect { (sh * aspect, sh) } else { (sw, sw / aspect) };
-        let viewport = [((sw - vw) / 2.0).floor(), ((sh - vh) / 2.0).floor(), vw.round(), vh.round()];
         let mut encoder = self.device.create_command_encoder(&Default::default());
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -1068,6 +1070,37 @@ impl StateExt for ShaderState {
         s.flags[1] = CmpFnc::Always as u32;
         s.screen = [size.0 as f32, size.1 as f32, 0.0, 0.0];
         s
+    }
+}
+
+/// Where the frame of `frame` pixels lands in a surface of `surface` pixels:
+/// `[x, y, width, height]`, and whether it is a whole multiple. With
+/// `integer`, the largest whole multiple that fits; otherwise, or when even
+/// 1x does not fit, the largest size with the frame's aspect ratio.
+fn present_viewport(surface: (u32, u32), frame: (u32, u32), integer: bool) -> ([f32; 4], bool) {
+    let (sw, sh) = (surface.0 as f32, surface.1 as f32);
+    let k = (surface.0 / frame.0).min(surface.1 / frame.1);
+    let (vw, vh, integer) = if integer && k >= 1 {
+        ((frame.0 * k) as f32, (frame.1 * k) as f32, true)
+    } else {
+        let aspect = frame.0 as f32 / frame.1 as f32;
+        let (vw, vh) = if sw / sh > aspect { (sh * aspect, sh) } else { (sw, sw / aspect) };
+        (vw.round(), vh.round(), false)
+    };
+    ([((sw - vw) / 2.0).floor(), ((sh - vh) / 2.0).floor(), vw, vh], integer)
+}
+
+#[cfg(test)]
+mod viewport_tests {
+    use super::present_viewport;
+
+    #[test]
+    fn integer_scale_picks_the_largest_whole_multiple_and_centres_it() {
+        assert_eq!(present_viewport((1920, 1080), (640, 480), true), ([320.0, 60.0, 1280.0, 960.0], true));
+        assert_eq!(present_viewport((2560, 1440), (640, 480), true), ([320.0, 0.0, 1920.0, 1440.0], true));
+        // Too small for 1x: fit instead.
+        assert_eq!(present_viewport((320, 240), (640, 480), true), ([0.0, 0.0, 320.0, 240.0], false));
+        assert_eq!(present_viewport((1920, 1080), (640, 480), false), ([240.0, 0.0, 1440.0, 1080.0], false));
     }
 }
 
