@@ -17,5 +17,9 @@ glide-abi = { path = "../glide-abi" }
 [dev-dependencies]
 rustyglide.workspace = true
 
+[features]
+# RetroArch slang shader presets on the window image (RUSTYGLIDE_SHADER).
+shaders = ["glide-abi/shaders"]
+
 [lints]
 workspace = true

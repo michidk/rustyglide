@@ -32,18 +32,21 @@ pub struct Settings {
     /// Show the frame at the largest whole multiple that fits the window,
     /// with nearest filtering, instead of stretching it to fit.
     pub integer_scale: bool,
+    /// A RetroArch slang shader preset (`.slangp`) for the window image.
+    /// Needs the `shaders` feature.
+    pub shader: Option<std::path::PathBuf>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { core: Config::default(), scale: 1, integer_scale: false }
+        Self { core: Config::default(), scale: 1, integer_scale: false, shader: None }
     }
 }
 
 impl Settings {
     /// Defaults overridden by `RUSTYGLIDE_*` environment variables:
-    /// `SCALE`, `INTEGER_SCALE`, `TMUS`, `TEXTURE_MEMORY_MB`, `FILTER`
-    /// (`point` or `bilinear`) and `NO_MIPMAPS`. The backend is chosen with wgpu's `WGPU_BACKEND`.
+    /// `SCALE`, `INTEGER_SCALE`, `SHADER`, `TMUS`, `TEXTURE_MEMORY_MB`,
+    /// `FILTER` (`point` or `bilinear`) and `NO_MIPMAPS`. The backend is chosen with wgpu's `WGPU_BACKEND`.
     pub fn from_env() -> Self {
         // shortcut: environment only; a config file can follow when a game needs per-title settings.
         let var = |name: &str| std::env::var(format!("RUSTYGLIDE_{name}")).ok();
@@ -65,6 +68,7 @@ impl Settings {
         };
         s.core.disable_mipmaps = var("NO_MIPMAPS").is_some_and(|v| v != "0");
         s.integer_scale = var("INTEGER_SCALE").is_some_and(|v| v != "0");
+        s.shader = var("SHADER").filter(|v| !v.is_empty()).map(Into::into);
         s
     }
 }
@@ -154,6 +158,7 @@ impl Glide {
     ) -> Result<(), Error> {
         let size = resolution.size().unwrap_or(target.size());
         let scale = self.settings.scale;
+        let windowed = matches!(target, Target::Window { .. });
         let mut renderer = match target {
             Target::Headless { .. } => Renderer::new(&Gpu::headless()?, None, size, scale)?,
             Target::Window { window, display, size: window_size } => {
@@ -177,6 +182,15 @@ impl Glide {
             }
         };
         renderer.integer_scale = self.settings.integer_scale;
+        if let Some(preset) = self.settings.shader.as_ref().filter(|_| windowed) {
+            #[cfg(feature = "shaders")]
+            match renderer.load_shader(preset) {
+                Ok(()) => log::info!("shader preset {}", preset.display()),
+                Err(e) => log::error!("shader preset {} not loaded: {e}", preset.display()),
+            }
+            #[cfg(not(feature = "shaders"))]
+            log::warn!("RUSTYGLIDE_SHADER {} ignored: built without the shaders feature", preset.display());
+        }
         self.renderer = Some(renderer);
         self.core.win_open(size.0, size.1, color_format, origin);
         Ok(())
