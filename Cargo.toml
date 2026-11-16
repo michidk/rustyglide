@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.2.1"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -13,9 +13,9 @@ keywords = ["glide", "3dfx", "voodoo", "wgpu", "emulation"]
 categories = ["rendering::graphics-api", "emulators"]
 
 [workspace.dependencies]
-rustyglide-core = { path = "crates/rustyglide-core", version = "0.2.1" }
-rustyglide-wgpu = { path = "crates/rustyglide-wgpu", version = "0.2.1" }
-rustyglide = { path = "crates/rustyglide", version = "0.2.1" }
+rustyglide-core = { path = "crates/rustyglide-core", version = "0.3.0" }
+rustyglide-wgpu = { path = "crates/rustyglide-wgpu", version = "0.3.0" }
+rustyglide = { path = "crates/rustyglide", version = "0.3.0" }
 wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "wgsl", "vulkan", "metal", "dx12", "gles"] }
 raw-window-handle = "0.6"
 pollster = "1.0"
