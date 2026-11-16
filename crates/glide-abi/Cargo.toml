@@ -16,5 +16,9 @@ log.workspace = true
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging"] }
 
+# Our own window when the game passes none: Wayland or X11.
+[target.'cfg(all(unix, not(target_vendor = "apple")))'.dependencies]
+winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita-notitle"] }
+
 [lints]
 workspace = true

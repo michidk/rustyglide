@@ -60,6 +60,12 @@ State and drawing calls are methods of `rustyglide_core::Context`, reached
 through `Glide`. `set_present_hook` runs after each presented frame with the
 wgpu device and the window's frame, for overlays.
 
+The `glide2x`/`glide3x` libraries draw into the game's window on Windows. On
+Linux and the BSDs, where Glide's `hWnd` cannot name a window, they open their
+own with winit, natively on Wayland or on X11, and render off screen when
+there is no display. Closing that window quits the game. Try it with
+`cargo run -p glide3x --example window`.
+
 Settings come from the environment:
 
 | Variable | Effect |

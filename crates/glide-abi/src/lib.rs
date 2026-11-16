@@ -12,6 +12,9 @@ use rustyglide::{Glide, GrVertex, Target};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::Mutex;
 
+#[cfg(all(unix, not(target_vendor = "apple")))]
+pub mod own_window;
+
 pub type FxBool = c_int;
 pub type ErrorCallback = extern "C" fn(*const c_char, FxBool);
 
@@ -137,12 +140,29 @@ pub fn window_target(hwnd: usize, size: Option<(u32, u32)>) -> Target {
         size: client,
     }
 }
-#[cfg(not(windows))]
+/// Glide's `hWnd` cannot name a Wayland or X11 window, so open our own.
+#[cfg(all(unix, not(target_vendor = "apple")))]
 pub fn window_target(_hwnd: usize, size: Option<(u32, u32)>) -> Target {
-    // shortcut: no own window outside Windows yet; frames render off screen.
+    let size = size.unwrap_or((640, 480));
+    match own_window::open(size) {
+        Some(w) => Target::Window { window: w.window, display: w.display, size: w.size },
+        None => Target::Headless { size },
+    }
+}
+#[cfg(not(any(windows, all(unix, not(target_vendor = "apple")))))]
+pub fn window_target(_hwnd: usize, size: Option<(u32, u32)>) -> Target {
+    // shortcut: macOS windows must be created on the main thread, which the game owns; render off screen.
     // Hosts that own a window use the `rustyglide` crate directly.
     log::warn!("glide2x: no window support on this platform yet; rendering off screen");
     Target::Headless { size: size.unwrap_or((640, 480)) }
+}
+
+/// The size our own window was resized to since the last call, if any.
+pub fn window_resized() -> Option<(u32, u32)> {
+    #[cfg(all(unix, not(target_vendor = "apple")))]
+    return own_window::take_resize();
+    #[cfg(not(all(unix, not(target_vendor = "apple"))))]
+    None
 }
 pub unsafe fn fog_out<'a>(table: *mut u8) -> Option<&'a mut [u8; FOG_TABLE_SIZE]> {
     // SAFETY: Glide 2 fog tables have 64 entries; null is rejected.
@@ -299,6 +319,9 @@ macro_rules! common_exports {
 
             #[unsafe(no_mangle)]
             pub extern "system" fn grBufferSwap(interval: c_int) {
+                if let Some((width, height)) = $crate::window_resized() {
+                    glide(|g| g.resize(width, height));
+                }
                 glide(|g| g.buffer_swap(interval.max(0) as u32));
             }
 
