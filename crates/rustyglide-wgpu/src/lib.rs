@@ -953,17 +953,23 @@ impl Renderer {
     }
 }
 
+/// The window format that shows Glide's 8-bit frame unchanged. Any other
+/// non-sRGB format may be linear (an HDR `Rgba16Float` swap chain is shown
+/// as scRGB), which washes the picture out, so only plain 8-bit formats are
+/// taken as they are; their sRGB twins work through the present shader.
+fn surface_format(formats: &[wgpu::TextureFormat]) -> Option<wgpu::TextureFormat> {
+    use wgpu::TextureFormat::{Bgra8Unorm, Bgra8UnormSrgb, Rgba8Unorm, Rgba8UnormSrgb};
+    let pick = |wanted: &[wgpu::TextureFormat]| formats.iter().copied().find(|f| wanted.contains(f));
+    pick(&[Bgra8Unorm, Rgba8Unorm]).or_else(|| pick(&[Bgra8UnormSrgb, Rgba8UnormSrgb])).or(formats.first().copied())
+}
+
 impl Presenter {
     fn new(gpu: &Gpu, surface: wgpu::Surface<'static>, size: (u32, u32)) -> Result<Self, Error> {
         let device = &gpu.device;
         let caps = surface.get_capabilities(&gpu.adapter);
-        let format = caps
-            .formats
-            .iter()
-            .copied()
-            .find(|f| !f.is_srgb())
-            .or_else(|| caps.formats.first().copied())
-            .ok_or_else(|| Error::Surface("the surface supports no formats".into()))?;
+        let format =
+            surface_format(&caps.formats).ok_or_else(|| Error::Surface("the surface supports no formats".into()))?;
+        log::info!("rustyglide: presenting as {format:?}");
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
@@ -1062,5 +1068,19 @@ impl StateExt for ShaderState {
         s.flags[1] = CmpFnc::Always as u32;
         s.screen = [size.0 as f32, size.1 as f32, 0.0, 0.0];
         s
+    }
+}
+
+#[cfg(test)]
+mod surface_format_tests {
+    use super::surface_format;
+    use wgpu::TextureFormat::*;
+
+    #[test]
+    fn prefers_plain_8_bit_over_linear_hdr_formats() {
+        assert_eq!(surface_format(&[Rgba16Float, Rgb10a2Unorm, Bgra8UnormSrgb, Bgra8Unorm]), Some(Bgra8Unorm));
+        assert_eq!(surface_format(&[Rgba16Float, Rgba8UnormSrgb]), Some(Rgba8UnormSrgb));
+        assert_eq!(surface_format(&[Rgba16Float]), Some(Rgba16Float));
+        assert_eq!(surface_format(&[]), None);
     }
 }
