@@ -23,13 +23,13 @@ pub struct ShaderState {
     pub fog_color: [f32; 4],
     /// 1/s range and 1/t range of TMU0 then TMU1 (Glide's 0..256 space to 0..1).
     pub tex_scale: [f32; 4],
-    /// LOD bias of TMU0 and TMU1, depth bias, unused.
+    /// LOD bias of TMU0 and TMU1, depth bias, and the depth of clears and LFB writes.
     pub bias: [f32; 4],
     /// Detail bias, scale and max of TMU0; unused.
     pub detail0: [f32; 4],
     /// Detail bias, scale and max of TMU1; unused.
     pub detail1: [f32; 4],
-    /// Glide screen width and height, unused.
+    /// Glide screen width and height; zw unused.
     pub screen: [f32; 4],
     /// The 64-entry fog table, four entries per word.
     pub fog_table: [u32; 16],
@@ -41,8 +41,6 @@ pub mod flag {
     pub const TMU1: u32 = 1 << 1;
     pub const CHROMA: u32 = 1 << 2;
     pub const ALPHA_CONTROLS_ITRGB: u32 = 1 << 3;
-    /// The draw is an LFB write: the color comes from the LFB texture.
-    pub const LFB: u32 = 1 << 4;
     /// LFB write through the pixel pipeline (fog, alpha test, chroma key).
     pub const LFB_PIPELINE: u32 = 1 << 5;
     /// LFB write carries its own depth.

@@ -297,7 +297,7 @@ impl Context {
         self.height = height;
         self.color_format = color_format;
         self.lfb_format.color_format = color_format;
-        self.origin = if origin == Origin::Any { Origin::UpperLeft } else { origin };
+        self.origin = origin.resolved();
         self.clip = (0, 0, width, height);
     }
 
@@ -309,7 +309,7 @@ impl Context {
 
     pub fn sst_origin(&mut self, origin: Origin) {
         self.dirty();
-        self.origin = if origin == Origin::Any { Origin::UpperLeft } else { origin };
+        self.origin = origin.resolved();
     }
 
     pub fn hints(&mut self, hint: Hint, mask: u32) {
@@ -479,7 +479,7 @@ impl Context {
 
     pub fn render_buffer(&mut self, buffer: Buffer) {
         self.dirty();
-        self.render_buffer = if buffer == Buffer::Front { Buffer::Front } else { Buffer::Back };
+        self.render_buffer = buffer.color();
     }
 
     // ---- Textures ---------------------------------------------------------
@@ -606,8 +606,8 @@ impl Context {
     /// `grTexDownloadMipMap`: every level of `info`, read consecutively from `data`.
     pub fn tex_download_mipmap(&mut self, tmu: Tmu, address: u32, even_odd: u32, info: TexInfo, data: &[u8]) {
         let mut offset = 0usize;
-        for lod in (info.large_lod as u32..=info.small_lod as u32).filter_map(Lod::from_index) {
-            let size = (texture::level_host_texels(lod, info.aspect) * info.format.bytes_per_texel()) as usize;
+        for lod in info.lods() {
+            let size = texture::level_host_bytes(lod, info.aspect, info.format);
             let level = data.get(offset..(offset + size).min(data.len())).unwrap_or(&[]);
             self.tex_download_level(tmu, address, lod, info.large_lod, info.aspect, info.format, even_odd, level);
             offset += size;
@@ -755,9 +755,7 @@ impl Context {
 
     /// `guDrawTriangleWithClip`: clips to the clip window before drawing.
     pub fn draw_triangle_clipped(&mut self, a: &GrVertex, b: &GrVertex, c: &GrVertex) {
-        let (x0, y0, x1, y1) = self.clip;
-        let polygon = clip::clip_polygon(&[*a, *b, *c], [x0 as f32, y0 as f32, x1 as f32, y1 as f32]);
-        self.draw_polygon_list(&polygon);
+        self.draw_polygon_list_clipped(&[*a, *b, *c]);
     }
 
     /// `guDrawPolygonVertexListWithClip`.
@@ -938,7 +936,7 @@ impl Context {
 
     /// Fills a read lock from pixels the renderer read back.
     pub fn lfb_lock_read(&mut self, buffer: Buffer, origin: Origin, pixels: ReadPixels<'_>) -> LockInfo {
-        let origin = if origin == Origin::Any { Origin::UpperLeft } else { origin };
+        let origin = origin.resolved();
         let (w, h) = (self.width as usize, self.height as usize);
         let stride = w * 2;
         let mut data = vec![0u8; stride * h];
@@ -965,7 +963,7 @@ impl Context {
     }
 
     pub fn lfb_lock_write(&mut self, buffer: Buffer, mode: LfbWriteMode, origin: Origin, pipeline: bool) -> LockInfo {
-        let origin = if origin == Origin::Any { Origin::UpperLeft } else { origin };
+        let origin = origin.resolved();
         let mode = if mode == LfbWriteMode::Any { LfbWriteMode::W565 } else { mode };
         let stride = self.width as usize * mode.bytes_per_pixel() as usize;
         let mut data = vec![0u8; stride * self.height as usize];
@@ -984,9 +982,8 @@ impl Context {
         }
         let Some(lock) = self.write_lock.take() else { return false };
         let pixels = lock.format.decode(&lock.data, lock.stride, self.width, self.height);
-        let rows: Vec<Vec<Option<lfb::WrittenPixel>>> = pixels.chunks(self.width as usize).map(<[_]>::to_vec).collect();
-        let rows: Vec<_> = if lock.origin == Origin::LowerLeft { rows.into_iter().rev().collect() } else { rows };
-        self.emit_lfb_write(lock.buffer, 0, 0, self.width, &rows.concat(), lock.pipeline);
+        let pixels = if lock.origin == Origin::LowerLeft { flip_rows(&pixels, self.width) } else { pixels };
+        self.emit_lfb_write(lock.buffer, 0, 0, self.width, &pixels, lock.pipeline);
         true
     }
 
@@ -1038,7 +1035,7 @@ impl Context {
         let rect = Rect { x: x + x0, y: y + y0, width: w, height: h };
         let pipeline = pipeline.then(|| {
             let mut state = self.shader_state(&[None, None]);
-            state.flags[0] |= flag::LFB | flag::LFB_PIPELINE | if has_depth { flag::LFB_DEPTH } else { 0 };
+            state.flags[0] |= flag::LFB_PIPELINE | if has_depth { flag::LFB_DEPTH } else { 0 };
             state.bias[3] = self.lfb_format.constant_depth as f32 / 65535.0;
             (self.pipeline_key(), state)
         });
@@ -1048,7 +1045,7 @@ impl Context {
             Rect { x: 0, y: 0, width: self.width, height: self.height }
         };
         self.commands.push(Command::LfbWrite {
-            buffer: if buffer == Buffer::Front { Buffer::Front } else { Buffer::Back },
+            buffer: buffer.color(),
             rect,
             rgba,
             mask,
@@ -1096,8 +1093,7 @@ impl Context {
                 &plain,
             );
         }
-        let format = src_format;
-        let Ok(mode) = LfbWriteMode::try_from(format) else { return false };
+        let Ok(mode) = LfbWriteMode::try_from(src_format) else { return false };
         let bpp = mode.bytes_per_pixel() as usize;
         let mut pixels = Vec::with_capacity((width * height) as usize);
         for row in 0..height as i64 {
@@ -1105,13 +1101,12 @@ impl Context {
             for col in 0..width as usize {
                 let at = start + (col * bpp) as i64;
                 let raw = usize::try_from(at).ok().and_then(|at| data.get(at..at + bpp));
-                pixels.push(raw.and_then(|raw| lfb::region_pixel(format, raw, &self.lfb_format)));
+                pixels.push(raw.and_then(|raw| lfb::region_pixel(src_format, raw, &self.lfb_format)));
             }
         }
         // The region's y is in the current origin's space.
         let (y, pixels) = if self.origin == Origin::LowerLeft {
-            let flipped: Vec<_> = pixels.chunks(width.max(1) as usize).rev().flatten().copied().collect();
-            (self.height.saturating_sub(y + height), flipped)
+            (self.height.saturating_sub(y + height), flip_rows(&pixels, width))
         } else {
             (y, pixels)
         };
@@ -1165,6 +1160,11 @@ fn hash<T: std::hash::Hash + ?Sized>(value: &T) -> u64 {
     let mut h = std::hash::DefaultHasher::new();
     value.hash(&mut h);
     h.finish()
+}
+
+/// `pixels` with its rows of `width` in reverse order, for lower-left origins.
+fn flip_rows<T: Copy>(pixels: &[T], width: u32) -> Vec<T> {
+    pixels.chunks(width.max(1) as usize).rev().flatten().copied().collect()
 }
 
 #[cfg(test)]

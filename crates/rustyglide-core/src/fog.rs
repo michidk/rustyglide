@@ -57,16 +57,6 @@ pub fn wfloat(oow: f32) -> u16 {
     (((exp as u32) << 12 | inverted) + 1).min(0xffff) as u16
 }
 
-/// Table fog density for a pixel with the given `oow`, in 0..=255.
-pub fn table_lookup(table: &FogTable, oow: f32) -> f32 {
-    let w = wfloat(oow) as usize;
-    let index = w >> 10;
-    let frac = ((w >> 2) & 0xff) as f32;
-    let this = table[index] as f32;
-    let next = table[(index + 1).min(FOG_TABLE_SIZE - 1)] as f32;
-    this + (next - this) * frac / 256.0
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

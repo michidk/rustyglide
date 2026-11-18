@@ -6,7 +6,7 @@
 pub use log;
 pub use rustyglide;
 use rustyglide::gutex::GuNccTable;
-use rustyglide::texture::{self, NccData, TexInfo};
+use rustyglide::texture::{NccData, TexInfo};
 use rustyglide::types::*;
 use rustyglide::{Glide, GrVertex, Target};
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -89,26 +89,27 @@ pub struct GrTexInfo {
     pub data: *mut c_void,
 }
 
-pub unsafe fn tex_info(call: &str, info: *const GrTexInfo) -> Option<(TexInfo, *mut c_void)> {
+/// Reads a `GrTexInfo`, mapping its LOD and aspect values to Glide 2
+/// numbering with `lod` and `aspect`.
+pub unsafe fn tex_info(
+    call: &str,
+    info: *const GrTexInfo,
+    lod: fn(c_int) -> u32,
+    aspect: fn(c_int) -> u32,
+) -> Option<(TexInfo, *mut c_void)> {
     // SAFETY: Glide callers pass a valid GrTexInfo pointer; null is rejected.
     let i = unsafe { info.as_ref() }?;
     Some((
         TexInfo {
-            small_lod: arg(call, i.small_lod)?,
-            large_lod: arg(call, i.large_lod)?,
-            aspect: arg(call, i.aspect_ratio)?,
+            small_lod: arg(call, lod(i.small_lod))?,
+            large_lod: arg(call, lod(i.large_lod))?,
+            aspect: arg(call, aspect(i.aspect_ratio))?,
             format: arg(call, i.format)?,
         },
         i.data,
     ))
 }
 
-pub fn host_size(info: &TexInfo) -> usize {
-    (info.large_lod as u32..=info.small_lod as u32)
-        .filter_map(Lod::from_index)
-        .map(|l| (texture::level_host_texels(l, info.aspect) * info.format.bytes_per_texel()) as usize)
-        .sum()
-}
 /// Bytes of Glide 2.4x's `GrState`.
 pub const GR_STATE_SIZE: usize = 312;
 #[cfg(windows)]
@@ -141,7 +142,7 @@ pub fn window_target(hwnd: usize, size: Option<(u32, u32)>) -> Target {
 pub fn window_target(_hwnd: usize, size: Option<(u32, u32)>) -> Target {
     // shortcut: no own window outside Windows yet; frames render off screen.
     // Hosts that own a window use the `rustyglide` crate directly.
-    log::warn!("glide2x: no window support on this platform yet; rendering off screen");
+    log::warn!("rustyglide: no window support on this platform yet; rendering off screen");
     Target::Headless { size: size.unwrap_or((640, 480)) }
 }
 pub unsafe fn fog_out<'a>(table: *mut u8) -> Option<&'a mut [u8; FOG_TABLE_SIZE]> {
@@ -191,17 +192,55 @@ pub unsafe fn download_table(call: &str, tmu: c_int, kind: u32, data: *const c_v
 }
 
 /// Expands the exports Glide 2 and Glide 3 share into the calling crate, as
-/// `pub mod common` re-exported at its root.
+/// `pub mod common` re-exported at its root. `lod` and `aspect` map the
+/// library's LOD and aspect values to Glide 2 numbering.
 #[macro_export]
 macro_rules! common_exports {
     () => {
+        $crate::common_exports!(lod = |v| v as u32, aspect = |v| v as u32);
+    };
+    (lod = $lod:expr, aspect = $aspect:expr) => {
         pub mod common {
             #![allow(non_snake_case, clippy::missing_safety_doc, clippy::too_many_arguments)]
             use $crate::rustyglide::combine::{Combine, TexCombine};
+            use $crate::rustyglide::texture;
             use $crate::rustyglide::types::*;
             use $crate::rustyglide::{Blend, Glide, Settings};
             use $crate::*;
             use std::ffi::{c_char, c_int, c_void};
+
+            const LOD: fn(c_int) -> u32 = $lod;
+            const ASPECT: fn(c_int) -> u32 = $aspect;
+
+            #[unsafe(no_mangle)]
+            pub extern "system" fn grTexCalcMemRequired(small: c_int, large: c_int, aspect: c_int, format: c_int) -> u32 {
+                let (small, large, aspect) = (LOD(small), LOD(large), ASPECT(aspect));
+                typed!("grTexCalcMemRequired", small: Lod, large: Lod, aspect: Aspect, format: TextureFormat =>
+                    texture::mem_required(small, large, aspect, format, level_mask::BOTH))
+            }
+
+            #[unsafe(no_mangle)]
+            pub unsafe extern "system" fn grTexTextureMemRequired(even_odd: u32, info: *const GrTexInfo) -> u32 {
+                // SAFETY: the game passes a GrTexInfo.
+                let Some((i, _)) = (unsafe { tex_info("grTexTextureMemRequired", info, LOD, ASPECT) }) else { return 0 };
+                texture::mem_required(i.small_lod, i.large_lod, i.aspect, i.format, even_odd)
+            }
+
+            #[unsafe(no_mangle)]
+            pub unsafe extern "system" fn grTexSource(tmu: c_int, address: u32, even_odd: u32, info: *const GrTexInfo) {
+                // SAFETY: the game passes a GrTexInfo.
+                let Some((i, _)) = (unsafe { tex_info("grTexSource", info, LOD, ASPECT) }) else { return };
+                typed!("grTexSource", tmu: Tmu => glide(|g| g.tex_source(tmu, address, even_odd, i)))
+            }
+
+            #[unsafe(no_mangle)]
+            pub unsafe extern "system" fn grTexDownloadMipMap(tmu: c_int, address: u32, even_odd: u32, info: *const GrTexInfo) {
+                // SAFETY: the game passes a GrTexInfo whose data holds every level.
+                let Some((i, data)) = (unsafe { tex_info("grTexDownloadMipMap", info, LOD, ASPECT) }) else { return };
+                // SAFETY: as above.
+                let data = unsafe { slice(data.cast::<u8>(), i.host_size()) };
+                typed!("grTexDownloadMipMap", tmu: Tmu => glide(|g| g.tex_download_mipmap(tmu, address, even_odd, i, data)))
+            }
 
             #[unsafe(no_mangle)]
             pub extern "system" fn grGlideInit() {
@@ -679,4 +718,16 @@ pub unsafe fn lfb_write_region(
     };
     let stride = if format == lfb_src::RLE16 { 0 } else { (data.len() / height as usize) as i32 };
     glide(|g| g.lfb_write_region(buffer, x, y, format, width, height, stride, &data) as FxBool)
+}
+
+/// Names in an export table (`exports.txt`) that `source` does not define,
+/// for each drop-in's export test.
+#[doc(hidden)]
+pub fn missing_exports<'a>(source: &str, table: &'a str) -> Vec<&'a str> {
+    table
+        .lines()
+        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+        .filter_map(|l| l.split_whitespace().next())
+        .filter(|name| !source.contains(&format!("extern \"system\" fn {name}(")))
+        .collect()
 }

@@ -5,7 +5,7 @@
 //! 2x12 I/Q words, for palette formats 256 big-endian words, then the mipmap
 //! levels largest first with 16-bit texels big-endian.
 
-use crate::texture::{NccData, level_host_texels};
+use crate::texture::{NccData, TexInfo};
 use crate::types::{Aspect, Lod, TextureFormat};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -78,10 +78,7 @@ pub fn parse_header(file: &[u8]) -> Option<(Header, usize)> {
     let lod = |size: u32| Lod::from_index(8u32.checked_sub(size.checked_ilog2()?)?).filter(|l| l.size() == size);
     let (small_lod, large_lod) = (lod(small)?, lod(large)?);
     let (width, height) = if aw >= ah { (large, large / aw) } else { (large / ah, large) };
-    let mem_required = (large_lod as u32..=small_lod as u32)
-        .filter_map(Lod::from_index)
-        .map(|l| level_host_texels(l, aspect) * format.bytes_per_texel())
-        .sum();
+    let mem_required = TexInfo { small_lod, large_lod, aspect, format }.host_size() as u32;
     Some((Header { width, height, small_lod, large_lod, aspect, format, mem_required }, at))
 }
 

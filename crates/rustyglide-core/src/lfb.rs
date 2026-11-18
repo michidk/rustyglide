@@ -17,11 +17,11 @@ pub fn rgba_to_565([r, g, b, _]: [u8; 4]) -> u16 {
 }
 
 fn expand5(v: u32) -> u8 {
-    ((v << 3) | (v >> 2)) as u8
+    crate::texture::expand(v & 0x1f, 5)
 }
 
 fn expand6(v: u32) -> u8 {
-    ((v << 2) | (v >> 4)) as u8
+    crate::texture::expand(v & 0x3f, 6)
 }
 
 /// Write state that shapes how locked pixels are interpreted.
@@ -141,6 +141,16 @@ pub fn region_pixel(src_format: u32, raw: &[u8], format: &WriteFormat) -> Option
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn expansion_replicates_high_bits() {
+        for v in 0..32 {
+            assert_eq!(super::expand5(v), ((v << 3) | (v >> 2)) as u8);
+        }
+        for v in 0..64 {
+            assert_eq!(super::expand6(v), ((v << 2) | (v >> 4)) as u8);
+        }
+    }
+
     use super::*;
 
     fn format(mode: LfbWriteMode) -> WriteFormat {

@@ -250,10 +250,7 @@ impl Glide {
         let r = self.renderer.as_ref()?;
         Some(match buffer {
             Buffer::Front | Buffer::Back => {
-                if self.read_cache.as_ref().is_none_or(|(b, _)| *b != buffer) {
-                    self.read_cache = Some((buffer, r.read_color(buffer)));
-                }
-                let rgba = &self.read_cache.as_ref().expect("filled above").1;
+                let rgba = cached_color(&mut self.read_cache, r, buffer);
                 self.core.lfb_lock_read(buffer, origin, ReadPixels::Color(rgba))
             }
             Buffer::Aux | Buffer::Depth => {
@@ -286,10 +283,7 @@ impl Glide {
         }
         self.flush();
         let Some(r) = &self.renderer else { return false };
-        if self.read_cache.as_ref().is_none_or(|(b, _)| *b != buffer) {
-            self.read_cache = Some((buffer, r.read_color(buffer)));
-        }
-        let rgba = &self.read_cache.as_ref().expect("filled above").1;
+        let rgba = cached_color(&mut self.read_cache, r, buffer);
         self.core.lfb_read_region(rgba, x, y, width, height, stride, dst);
         true
     }
@@ -299,4 +293,12 @@ impl Glide {
         self.flush();
         self.renderer.as_ref().map(|r| r.read_color(buffer)).unwrap_or_default()
     }
+}
+
+/// `buffer`'s pixels, read back from the GPU only when `cache` holds another buffer.
+fn cached_color<'a>(cache: &'a mut Option<(Buffer, Vec<u8>)>, r: &Renderer, buffer: Buffer) -> &'a [u8] {
+    if cache.as_ref().is_none_or(|(b, _)| *b != buffer) {
+        *cache = Some((buffer, r.read_color(buffer)));
+    }
+    &cache.as_ref().expect("filled above").1
 }

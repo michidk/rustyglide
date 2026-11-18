@@ -8,7 +8,7 @@
 //! log2 numbering, and calls without an equivalent are accepted as no-ops.
 #![allow(non_snake_case, clippy::missing_safety_doc, clippy::too_many_arguments)]
 
-use glide_abi::rustyglide::texture::{self, TexInfo};
+use glide_abi::rustyglide::texture;
 use glide_abi::rustyglide::types::*;
 use glide_abi::rustyglide::{GrTmuVertex, GrVertex};
 use glide_abi::*;
@@ -17,7 +17,7 @@ use std::sync::Mutex;
 
 pub use glide_abi::{GrLfbInfo, GrTexInfo};
 
-glide_abi::common_exports!();
+glide_abi::common_exports!(lod = crate::lod2, aspect = crate::aspect2);
 
 // ---- Vertex layout ----------------------------------------------------------------
 
@@ -312,50 +312,6 @@ fn lod2(lod3: i32) -> u32 {
 
 fn aspect2(aspect3: i32) -> u32 {
     (3 - aspect3) as u32
-}
-
-unsafe fn tex_info3(call: &str, info: *const GrTexInfo) -> Option<(TexInfo, *mut c_void)> {
-    // SAFETY: Glide callers pass a valid GrTexInfo pointer; null is rejected.
-    let i = unsafe { info.as_ref() }?;
-    Some((
-        TexInfo {
-            small_lod: arg(call, lod2(i.small_lod))?,
-            large_lod: arg(call, lod2(i.large_lod))?,
-            aspect: arg(call, aspect2(i.aspect_ratio))?,
-            format: arg(call, i.format)?,
-        },
-        i.data,
-    ))
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn grTexCalcMemRequired(small: c_int, large: c_int, aspect: c_int, format: c_int) -> u32 {
-    let (small, large, aspect) = (lod2(small), lod2(large), aspect2(aspect));
-    typed!("grTexCalcMemRequired", small: Lod, large: Lod, aspect: Aspect, format: TextureFormat =>
-        texture::mem_required(small, large, aspect, format, level_mask::BOTH))
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn grTexTextureMemRequired(even_odd: u32, info: *const GrTexInfo) -> u32 {
-    // SAFETY: the game passes a GrTexInfo.
-    let Some((i, _)) = (unsafe { tex_info3("grTexTextureMemRequired", info) }) else { return 0 };
-    texture::mem_required(i.small_lod, i.large_lod, i.aspect, i.format, even_odd)
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn grTexSource(tmu: c_int, address: u32, even_odd: u32, info: *const GrTexInfo) {
-    // SAFETY: the game passes a GrTexInfo.
-    let Some((i, _)) = (unsafe { tex_info3("grTexSource", info) }) else { return };
-    typed!("grTexSource", tmu: Tmu => glide(|g| g.tex_source(tmu, address, even_odd, i)))
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn grTexDownloadMipMap(tmu: c_int, address: u32, even_odd: u32, info: *const GrTexInfo) {
-    // SAFETY: the game passes a GrTexInfo whose data holds every level.
-    let Some((i, data)) = (unsafe { tex_info3("grTexDownloadMipMap", info) }) else { return };
-    // SAFETY: as above.
-    let data = unsafe { slice(data.cast::<u8>(), host_size(&i)) };
-    typed!("grTexDownloadMipMap", tmu: Tmu => glide(|g| g.tex_download_mipmap(tmu, address, even_odd, i, data)))
 }
 
 #[unsafe(no_mangle)]
@@ -657,12 +613,7 @@ mod tests {
     fn every_listed_export_is_defined() {
         let source = [include_str!("lib.rs"), include_str!("../../glide-abi/src/lib.rs")].concat();
         let table = include_str!("../exports.txt");
-        let missing: Vec<&str> = table
-            .lines()
-            .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
-            .filter_map(|l| l.split_whitespace().next())
-            .filter(|name| !source.contains(&format!("extern \"system\" fn {name}(")))
-            .collect();
+        let missing = glide_abi::missing_exports(&source, table);
         assert!(missing.is_empty(), "exports without a definition: {missing:?}");
     }
 }

@@ -304,22 +304,6 @@ impl Renderer {
                 count: None,
             }],
         });
-        let texture_entry = |binding| wgpu::BindGroupLayoutEntry {
-            binding,
-            visibility: wgpu::ShaderStages::FRAGMENT,
-            ty: wgpu::BindingType::Texture {
-                sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                view_dimension: wgpu::TextureViewDimension::D2,
-                multisampled: false,
-            },
-            count: None,
-        };
-        let sampler_entry = |binding| wgpu::BindGroupLayoutEntry {
-            binding,
-            visibility: wgpu::ShaderStages::FRAGMENT,
-            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-            count: None,
-        };
         let texture_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("textures"),
             entries: &[texture_entry(0), sampler_entry(1), texture_entry(2), sampler_entry(3)],
@@ -430,26 +414,7 @@ impl Renderer {
     fn clear_targets(&mut self) {
         let mut encoder = self.device.create_command_encoder(&Default::default());
         for view in &self.color_views {
-            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("reset"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_view,
-                    depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
+            target_pass(&mut encoder, "reset", view, &self.depth_view, true);
         }
         self.queue.submit([encoder.finish()]);
     }
@@ -617,19 +582,8 @@ impl Renderer {
 
     /// Runs `commands`. Returns whether a buffer swap happened.
     pub fn execute(&mut self, commands: Vec<Command>) -> bool {
-        let mut states: Vec<u8> = Vec::new();
-        let mut last_state: Option<ShaderState> = None;
-        let mut vertices: Vec<DrawVertex> = Vec::new();
-        let mut ops: Vec<Op> = Vec::new();
+        let mut frame = Frame::default();
         let mut swapped = false;
-        let mut push_state = |state: &ShaderState, states: &mut Vec<u8>| -> u32 {
-            if last_state.as_ref() != Some(state) {
-                states.resize(states.len().next_multiple_of(STATE_STRIDE as usize), 0);
-                states.extend_from_slice(bytemuck::bytes_of(state));
-                last_state = Some(*state);
-            }
-            (states.len() - STATE_SIZE as usize) as u32
-        };
         for command in commands {
             match command {
                 Command::CreateTexture { id, levels } => {
@@ -641,67 +595,30 @@ impl Renderer {
                     self.textures.remove(&id);
                     self.bind_groups.retain(|k, _| !k.iter().flatten().any(|b| b.texture == id));
                 }
-                Command::Draw(DrawBatch { buffer, pipeline, state, textures, scissor, vertices: v }) => {
-                    let target = self.target_index(buffer);
-                    let state_offset = push_state(&state, &mut states);
-                    let start = vertices.len() as u32;
-                    vertices.extend_from_slice(&v);
-                    let bind_group = self.texture_group(textures);
-                    ops.push(Op {
-                        target,
-                        kind: Kind::Draw,
-                        key: pipeline,
-                        state_offset,
-                        bind_group,
-                        scissor,
-                        vertices: start..vertices.len() as u32,
-                    });
+                Command::Draw(DrawBatch { buffer, pipeline, state, textures, scissor, vertices }) => {
+                    let (target, bind_group) = (self.target_index(buffer), self.texture_group(textures));
+                    frame.push(target, Kind::Draw, pipeline, &state, bind_group, scissor, &vertices);
                 }
                 Command::Clear { buffer, rect, color, depth, write_rgb, write_alpha, write_depth } => {
-                    let target = self.target_index(buffer);
-                    let mut state = ShaderState::zeroed_with_screen(self.size);
+                    let mut state = zeroed_state(self.size);
                     state.constant = color;
                     state.bias[3] = depth;
-                    let state_offset = push_state(&state, &mut states);
-                    let start = vertices.len() as u32;
-                    vertices.extend_from_slice(&quad(rect, None));
-                    let key = PipelineKey {
-                        blend: None,
-                        depth_compare: None,
-                        depth_write: write_depth,
-                        write_rgb,
-                        write_alpha,
-                    };
-                    let bind_group = self.texture_group([None, None]);
-                    ops.push(Op {
-                        target,
-                        kind: Kind::Clear,
-                        key,
-                        state_offset,
-                        bind_group,
-                        scissor: rect,
-                        vertices: start..vertices.len() as u32,
-                    });
+                    let key = plain_key(write_depth, write_rgb, write_alpha);
+                    let (target, bind_group) = (self.target_index(buffer), self.texture_group([None, None]));
+                    frame.push(target, Kind::Clear, key, &state, bind_group, rect, &quad(rect, None));
                 }
                 Command::LfbWrite { buffer, rect, rgba, mask, depth, pipeline, scissor } => {
-                    let target = self.target_index(buffer);
-                    let (key, mut state) = match pipeline {
-                        Some((key, state)) => (key, state),
-                        None => {
-                            let mut state = ShaderState::zeroed_with_screen(self.size);
-                            state.flags[0] = flag::LFB | if depth.is_some() { flag::LFB_DEPTH } else { 0 };
-                            let key = PipelineKey {
-                                blend: None,
-                                depth_compare: None,
-                                depth_write: depth.is_some(),
-                                write_rgb: true,
-                                write_alpha: true,
-                            };
+                    let (key, state) = match pipeline {
+                        Some((key, mut state)) => {
+                            state.screen = [self.size.0 as f32, self.size.1 as f32, 0.0, 0.0];
                             (key, state)
                         }
+                        None => {
+                            let mut state = zeroed_state(self.size);
+                            state.flags[0] = if depth.is_some() { flag::LFB_DEPTH } else { 0 };
+                            (plain_key(depth.is_some(), true, true), state)
+                        }
                     };
-                    state.screen = [self.size.0 as f32, self.size.1 as f32, 0.0, 0.0];
-                    let state_offset = push_state(&state, &mut states);
                     let extra: Vec<u8> = mask
                         .iter()
                         .zip(depth.as_deref().unwrap_or(&[]).iter().copied().chain(std::iter::repeat(0)))
@@ -715,17 +632,8 @@ impl Renderer {
                         &extra.create_view(&Default::default()),
                         &self.point_sampler,
                     );
-                    let start = vertices.len() as u32;
-                    vertices.extend_from_slice(&quad(rect, Some((rect.width as f32, rect.height as f32))));
-                    ops.push(Op {
-                        target,
-                        kind: Kind::Lfb,
-                        key,
-                        state_offset,
-                        bind_group,
-                        scissor,
-                        vertices: start..vertices.len() as u32,
-                    });
+                    let quad = quad(rect, Some((rect.width as f32, rect.height as f32)));
+                    frame.push(self.target_index(buffer), Kind::Lfb, key, &state, bind_group, scissor, &quad);
                 }
                 Command::Swap { .. } => {
                     self.front = 1 - self.front;
@@ -733,10 +641,10 @@ impl Renderer {
                 }
             }
         }
-        if ops.iter().any(|op| op.target == self.front) {
+        if frame.ops.iter().any(|op| op.target == self.front) {
             self.front_dirty = true;
         }
-        self.encode(&ops, &states, &vertices);
+        self.encode(&frame.ops, &frame.states, &frame.vertices);
         swapped
     }
 
@@ -764,23 +672,7 @@ impl Renderer {
         let mut i = 0;
         while i < ops.len() {
             let target = ops[i].target;
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("glide"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.color_views[target],
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_view,
-                    depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
+            let mut pass = target_pass(&mut encoder, "glide", &self.color_views[target], &self.depth_view, false);
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             while i < ops.len() && ops[i].target == target {
                 let op = &ops[i];
@@ -991,22 +883,8 @@ impl Presenter {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("present"),
             entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
+                texture_entry(0),
+                sampler_entry(1),
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::FRAGMENT,
@@ -1060,16 +938,106 @@ impl Presenter {
     }
 }
 
-trait StateExt {
-    fn zeroed_with_screen(size: (u32, u32)) -> Self;
+fn texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        },
+        count: None,
+    }
 }
 
-impl StateExt for ShaderState {
-    fn zeroed_with_screen(size: (u32, u32)) -> Self {
-        let mut s: ShaderState = bytemuck::Zeroable::zeroed();
-        s.flags[1] = CmpFnc::Always as u32;
-        s.screen = [size.0 as f32, size.1 as f32, 0.0, 0.0];
-        s
+fn sampler_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+        count: None,
+    }
+}
+
+/// A render pass on a color target and the depth buffer; `clear` resets both
+/// to black and far, otherwise their contents are kept.
+fn target_pass<'e>(
+    encoder: &'e mut wgpu::CommandEncoder,
+    label: &str,
+    color: &wgpu::TextureView,
+    depth: &wgpu::TextureView,
+    clear: bool,
+) -> wgpu::RenderPass<'e> {
+    let (color_load, depth_load) = if clear {
+        (wgpu::LoadOp::Clear(wgpu::Color::BLACK), wgpu::LoadOp::Clear(1.0))
+    } else {
+        (wgpu::LoadOp::Load, wgpu::LoadOp::Load)
+    };
+    encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some(label),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view: color,
+            depth_slice: None,
+            resolve_target: None,
+            ops: wgpu::Operations { load: color_load, store: wgpu::StoreOp::Store },
+        })],
+        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+            view: depth,
+            depth_ops: Some(wgpu::Operations { load: depth_load, store: wgpu::StoreOp::Store }),
+            stencil_ops: None,
+        }),
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+    })
+}
+
+/// A state for clears and plain LFB writes: nothing enabled, alpha test always passing.
+fn zeroed_state(size: (u32, u32)) -> ShaderState {
+    let mut s: ShaderState = bytemuck::Zeroable::zeroed();
+    s.flags[1] = CmpFnc::Always as u32;
+    s.screen = [size.0 as f32, size.1 as f32, 0.0, 0.0];
+    s
+}
+
+/// A pipeline without blending or depth test.
+fn plain_key(depth_write: bool, write_rgb: bool, write_alpha: bool) -> PipelineKey {
+    PipelineKey { blend: None, depth_compare: None, depth_write, write_rgb, write_alpha }
+}
+
+/// The draws of one `execute` call: packed states, vertices and ops.
+#[derive(Default)]
+struct Frame {
+    states: Vec<u8>,
+    last_state: Option<ShaderState>,
+    vertices: Vec<DrawVertex>,
+    ops: Vec<Op>,
+}
+
+impl Frame {
+    #[allow(clippy::too_many_arguments)]
+    fn push(
+        &mut self,
+        target: usize,
+        kind: Kind,
+        key: PipelineKey,
+        state: &ShaderState,
+        bind_group: wgpu::BindGroup,
+        scissor: Rect,
+        vertices: &[DrawVertex],
+    ) {
+        // Consecutive draws with equal state share one uniform slot.
+        if self.last_state.as_ref() != Some(state) {
+            self.states.resize(self.states.len().next_multiple_of(STATE_STRIDE as usize), 0);
+            self.states.extend_from_slice(bytemuck::bytes_of(state));
+            self.last_state = Some(*state);
+        }
+        let state_offset = (self.states.len() - STATE_SIZE as usize) as u32;
+        let start = self.vertices.len() as u32;
+        self.vertices.extend_from_slice(vertices);
+        let vertices = start..self.vertices.len() as u32;
+        self.ops.push(Op { target, kind, key, state_offset, bind_group, scissor, vertices });
     }
 }
 

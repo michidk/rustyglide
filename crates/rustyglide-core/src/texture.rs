@@ -16,6 +16,18 @@ pub struct TexInfo {
     pub format: TextureFormat,
 }
 
+impl TexInfo {
+    /// The texture's levels, largest first.
+    pub fn lods(&self) -> impl Iterator<Item = Lod> + use<> {
+        lods(self.large_lod, self.small_lod)
+    }
+
+    /// Bytes of every level in host memory, as `grTexDownloadMipMap` reads them.
+    pub fn host_size(&self) -> usize {
+        self.lods().map(|l| level_host_bytes(l, self.aspect, self.format)).sum()
+    }
+}
+
 /// Width and height in texels of `lod` for a texture of `aspect`.
 pub fn level_dims(lod: Lod, aspect: Aspect) -> (u32, u32) {
     let long = lod.size();
@@ -43,7 +55,13 @@ pub fn level_host_texels(lod: Lod, aspect: Aspect) -> u32 {
     w * h
 }
 
-fn lods(large: Lod, small: Lod) -> impl Iterator<Item = Lod> {
+/// Bytes a level takes in host memory, as `grTexDownloadMipMap` steps.
+pub fn level_host_bytes(lod: Lod, aspect: Aspect, format: TextureFormat) -> usize {
+    (level_host_texels(lod, aspect) * format.bytes_per_texel()) as usize
+}
+
+/// The levels from `large` down to `small`, largest first.
+pub fn lods(large: Lod, small: Lod) -> impl Iterator<Item = Lod> {
     (large as u32..=small as u32).filter_map(Lod::from_index)
 }
 
@@ -121,7 +139,7 @@ pub struct DecodeTables<'a> {
     pub ncc: &'a NccData,
 }
 
-fn expand(v: u32, bits: u32) -> u8 {
+pub(crate) fn expand(v: u32, bits: u32) -> u8 {
     // Replicate the high bits into the low ones, as the hardware does.
     let v = v << (8 - bits);
     let mut out = v;
@@ -242,23 +260,10 @@ impl TmuMemory {
     }
 }
 
-/// Decodes the mipmap chain of a texture at `address` into RGBA8 levels,
-/// largest first. Levels this TMU does not hold (split even/odd textures) are
-/// filled by downsampling the previous level.
+/// Decodes the mipmap chain of a texture into RGBA8 levels, largest first,
+/// reading each level at `level_address`. Levels this TMU does not hold (split
+/// even/odd textures) are filled by downsampling the previous level.
 pub fn decode_chain(
-    memory: &TmuMemory,
-    address: u32,
-    even_odd: u32,
-    info: &TexInfo,
-    tables: &DecodeTables<'_>,
-) -> Vec<(u32, u32, Vec<u8>)> {
-    decode_chain_at(memory, even_odd, info, tables, |lod| {
-        address + level_offset(lod, info.large_lod, info.aspect, info.format, even_odd)
-    })
-}
-
-/// [`decode_chain`] with each level's address given by `level_address`.
-pub fn decode_chain_at(
     memory: &TmuMemory,
     even_odd: u32,
     info: &TexInfo,

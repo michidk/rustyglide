@@ -60,7 +60,7 @@ fn memory_range(key: &Key) -> Range<u32> {
     let info = &key.source.info;
     let mut start = u32::MAX;
     let mut end = 0;
-    for lod in (info.large_lod as u32..=info.small_lod as u32).filter_map(Lod::from_index) {
+    for lod in info.lods() {
         let (w, h) = texture::level_dims(lod, info.aspect);
         let at = level_address(key, lod);
         start = start.min(at);
@@ -70,7 +70,7 @@ fn memory_range(key: &Key) -> Range<u32> {
 }
 
 pub fn decode(memory: &TmuMemory, key: &Key, tables: &DecodeTables<'_>) -> Levels {
-    texture::decode_chain_at(memory, key.source.even_odd, &key.source.info, tables, |lod| level_address(key, lod))
+    texture::decode_chain(memory, key.source.even_odd, &key.source.info, tables, |lod| level_address(key, lod))
 }
 
 impl TextureCache {

@@ -344,26 +344,6 @@ pub unsafe extern "system" fn guDrawPolygonVertexListWithClip(n: c_int, vertices
 // ---- Textures ------------------------------------------------------------------
 
 #[unsafe(no_mangle)]
-pub extern "system" fn grTexCalcMemRequired(small: c_int, large: c_int, aspect: c_int, format: c_int) -> u32 {
-    typed!("grTexCalcMemRequired", small: Lod, large: Lod, aspect: Aspect, format: TextureFormat =>
-        texture::mem_required(small, large, aspect, format, level_mask::BOTH))
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn grTexTextureMemRequired(even_odd: u32, info: *const GrTexInfo) -> u32 {
-    // SAFETY: the game passes a GrTexInfo.
-    let Some((i, _)) = (unsafe { tex_info("grTexTextureMemRequired", info) }) else { return 0 };
-    texture::mem_required(i.small_lod, i.large_lod, i.aspect, i.format, even_odd)
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn grTexSource(tmu: c_int, address: u32, even_odd: u32, info: *const GrTexInfo) {
-    // SAFETY: the game passes a GrTexInfo.
-    let Some((i, _)) = (unsafe { tex_info("grTexSource", info) }) else { return };
-    typed!("grTexSource", tmu: Tmu => glide(|g| g.tex_source(tmu, address, even_odd, i)))
-}
-
-#[unsafe(no_mangle)]
 pub extern "system" fn grTexCombineFunction(tmu: c_int, fnc: c_int) {
     typed!("grTexCombineFunction", tmu: Tmu, fnc: TextureCombineFnc => glide(|g| g.gu_tex_combine_function(tmu, fnc)))
 }
@@ -390,15 +370,6 @@ pub extern "system" fn grTexNCCTable(tmu: c_int, table: u32) {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn grTexDownloadMipMap(tmu: c_int, address: u32, even_odd: u32, info: *const GrTexInfo) {
-    // SAFETY: the game passes a GrTexInfo whose data holds every level.
-    let Some((i, data)) = (unsafe { tex_info("grTexDownloadMipMap", info) }) else { return };
-    // SAFETY: as above.
-    let data = unsafe { slice(data.cast::<u8>(), host_size(&i)) };
-    typed!("grTexDownloadMipMap", tmu: Tmu => glide(|g| g.tex_download_mipmap(tmu, address, even_odd, i, data)))
-}
-
-#[unsafe(no_mangle)]
 pub unsafe extern "system" fn grTexDownloadMipMapLevel(
     tmu: c_int,
     address: u32,
@@ -410,7 +381,7 @@ pub unsafe extern "system" fn grTexDownloadMipMapLevel(
     data: *const c_void,
 ) {
     typed!("grTexDownloadMipMapLevel", tmu: Tmu, lod: Lod, large: Lod, aspect: Aspect, format: TextureFormat => {
-        let size = (texture::level_host_texels(lod, aspect) * format.bytes_per_texel()) as usize;
+        let size = texture::level_host_bytes(lod, aspect, format);
         // SAFETY: the game passes one whole level.
         let data = unsafe { slice(data.cast::<u8>(), size) };
         glide(|g| g.tex_download_level(tmu, address, lod, large, aspect, format, even_odd, data))
@@ -558,7 +529,7 @@ pub extern "system" fn guTexAllocateMemory(
     else {
         return null;
     };
-    with(|s| s.glide.gu_tex_allocate(tmu, even_odd & 0xff, attrs, lod_bias, trilinear != 0))
+    glide(|g| g.gu_tex_allocate(tmu, even_odd & 0xff, attrs, lod_bias, trilinear != 0))
 }
 
 fn attributes(
@@ -617,16 +588,8 @@ pub extern "system" fn guTexChangeAttributes(
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn guTexDownloadMipMap(id: u32, src: *const c_void, ncc: *const GuNccTable) {
     glide(|g| {
-        let Some(info) = g.gu_tex_info(id).copied() else { return };
-        let (Ok(small), Ok(large), Ok(aspect), Ok(format)) = (
-            Lod::try_from(info.lod_min as u32),
-            Lod::try_from(info.lod_max as u32),
-            Aspect::try_from(info.aspect_ratio as u32),
-            TextureFormat::try_from(info.format as u32),
-        ) else {
-            return;
-        };
-        let size = host_size(&TexInfo { small_lod: small, large_lod: large, aspect, format });
+        let Some(info) = g.gu_tex_info(id).and_then(|m| m.tex_info()) else { return };
+        let size = info.host_size();
         // SAFETY: the game passes every level of the texture and an optional NCC table.
         let (data, table) = unsafe { (slice(src.cast::<u8>(), size), ncc.as_ref().map(GuNccTable::table)) };
         g.gu_tex_download_mipmap(id, data, table.as_ref());
@@ -639,13 +602,8 @@ pub unsafe extern "system" fn guTexDownloadMipMapLevel(id: u32, lod: c_int, src:
     // SAFETY: the game passes a pointer to its level data pointer.
     let Some(ptr) = (unsafe { src.as_mut() }) else { return };
     glide(|g| {
-        let Some(info) = g.gu_tex_info(id).copied() else { return };
-        let (Ok(aspect), Ok(format)) =
-            (Aspect::try_from(info.aspect_ratio as u32), TextureFormat::try_from(info.format as u32))
-        else {
-            return;
-        };
-        let size = (texture::level_host_texels(lod, aspect) * format.bytes_per_texel()) as usize;
+        let Some(info) = g.gu_tex_info(id).and_then(|m| m.tex_info()) else { return };
+        let size = texture::level_host_bytes(lod, info.aspect, info.format);
         // SAFETY: `*ptr` holds one level.
         let data = unsafe { slice(ptr.cast::<u8>(), size) };
         let used = g.gu_tex_download_level(id, lod, data);
@@ -662,7 +620,7 @@ pub extern "system" fn guTexGetMipMapInfo(id: u32) -> *mut GrMipMapInfo {
 #[unsafe(no_mangle)]
 pub extern "system" fn guTexGetCurrentMipMap(tmu: c_int) -> u32 {
     let Some(tmu) = arg::<Tmu>("guTexGetCurrentMipMap", tmu) else { return rustyglide::gutex::NULL_MIPMAP };
-    with(|s| s.glide.gu_tex_current(tmu))
+    glide(|g| g.gu_tex_current(tmu))
 }
 
 #[unsafe(no_mangle)]
@@ -764,12 +722,7 @@ mod tests {
     fn every_listed_export_is_defined() {
         let source = [include_str!("lib.rs"), include_str!("../../glide-abi/src/lib.rs")].concat();
         let table = include_str!("../exports.txt");
-        let missing: Vec<&str> = table
-            .lines()
-            .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
-            .filter_map(|l| l.split_whitespace().next())
-            .filter(|name| !source.contains(&format!("extern \"system\" fn {name}(")))
-            .collect();
+        let missing = glide_abi::missing_exports(&source, table);
         assert!(missing.is_empty(), "exports without a definition: {missing:?}");
     }
 }

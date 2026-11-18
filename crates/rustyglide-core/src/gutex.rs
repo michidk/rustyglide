@@ -96,13 +96,21 @@ pub struct Manager {
 /// Textures may not straddle the 2 MB boundary of a TMU.
 const BOUNDARY: u32 = 2 << 20;
 
-fn info_of(m: &GrMipMapInfo) -> Option<TexInfo> {
-    Some(TexInfo {
-        small_lod: Lod::try_from(m.lod_min as u32).ok()?,
-        large_lod: Lod::try_from(m.lod_max as u32).ok()?,
-        aspect: Aspect::try_from(m.aspect_ratio as u32).ok()?,
-        format: TextureFormat::try_from(m.format as u32).ok()?,
-    })
+/// A Glide enum from one of `GrMipMapInfo`'s int fields; invalid values give the default.
+fn field<T: TryFrom<u32> + Default>(v: i32) -> T {
+    u32::try_from(v).ok().and_then(|v| T::try_from(v).ok()).unwrap_or_default()
+}
+
+impl GrMipMapInfo {
+    /// The texture's levels, aspect and format, if they are valid Glide values.
+    pub fn tex_info(&self) -> Option<TexInfo> {
+        Some(TexInfo {
+            small_lod: Lod::try_from(self.lod_min as u32).ok()?,
+            large_lod: Lod::try_from(self.lod_max as u32).ok()?,
+            aspect: Aspect::try_from(self.aspect_ratio as u32).ok()?,
+            format: TextureFormat::try_from(self.format as u32).ok()?,
+        })
+    }
 }
 
 impl Context {
@@ -167,7 +175,7 @@ impl Context {
     /// `guTexChangeAttributes`: fails when the new size does not fit the allocation.
     pub fn gu_tex_change_attributes(&mut self, id: u32, attrs: Attributes) -> bool {
         let Some(info) = self.gutex.infos.get_mut(id as usize) else { return false };
-        let Some(old) = info_of(info) else { return false };
+        let Some(old) = info.tex_info() else { return false };
         let old_size = texture::mem_required(old.small_lod, old.large_lod, old.aspect, old.format, info.odd_even_mask);
         let new_size =
             texture::mem_required(attrs.small_lod, attrs.large_lod, attrs.aspect, attrs.format, info.odd_even_mask);
@@ -189,7 +197,7 @@ impl Context {
     /// `guTexDownloadMipMap`: every level from `data`, plus the NCC table for YIQ formats.
     pub fn gu_tex_download_mipmap(&mut self, id: u32, data: &[u8], ncc: Option<&Ncc>) {
         let Some(m) = self.gutex.infos.get_mut(id as usize) else { return };
-        let Some(info) = info_of(m) else { return };
+        let Some(info) = m.tex_info() else { return };
         if info.format.uses_ncc()
             && let Some(table) = ncc
         {
@@ -203,34 +211,21 @@ impl Context {
     /// `guTexDownloadMipMapLevel`: one level; returns the bytes it consumed.
     pub fn gu_tex_download_level(&mut self, id: u32, lod: Lod, data: &[u8]) -> usize {
         let Some(m) = self.gutex.infos.get(id as usize) else { return 0 };
-        let Some(info) = info_of(m) else { return 0 };
+        let Some(info) = m.tex_info() else { return 0 };
         let Ok(tmu) = Tmu::try_from(m.tmu as u32) else { return 0 };
         let (address, even_odd) = (m.tmu_base_address, m.odd_even_mask);
         self.tex_download_level(tmu, address, lod, info.large_lod, info.aspect, info.format, even_odd, data);
-        (texture::level_host_texels(lod, info.aspect) * info.format.bytes_per_texel()) as usize
+        texture::level_host_bytes(lod, info.aspect, info.format)
     }
 
     /// `guTexSource`: binds a texture and its sampling state.
     pub fn gu_tex_source(&mut self, id: u32) {
         let Some(m) = self.gutex.infos.get(id as usize).map(|b| **b) else { return };
-        let (Some(info), Ok(tmu)) = (info_of(&m), Tmu::try_from(m.tmu as u32)) else { return };
-        let get = |v: i32| u32::try_from(v).ok();
+        let (Some(info), Ok(tmu)) = (m.tex_info(), Tmu::try_from(m.tmu as u32)) else { return };
         self.tex_source(tmu, m.tmu_base_address, m.odd_even_mask, info);
-        self.tex_filter_mode(
-            tmu,
-            get(m.minfilter_mode).and_then(|v| v.try_into().ok()).unwrap_or_default(),
-            get(m.magfilter_mode).and_then(|v| v.try_into().ok()).unwrap_or_default(),
-        );
-        self.tex_clamp_mode(
-            tmu,
-            get(m.s_clamp_mode).and_then(|v| v.try_into().ok()).unwrap_or_default(),
-            get(m.t_clamp_mode).and_then(|v| v.try_into().ok()).unwrap_or_default(),
-        );
-        self.tex_mipmap_mode(
-            tmu,
-            get(m.mipmap_mode).and_then(|v| v.try_into().ok()).unwrap_or_default(),
-            m.trilinear != 0,
-        );
+        self.tex_filter_mode(tmu, field(m.minfilter_mode), field(m.magfilter_mode));
+        self.tex_clamp_mode(tmu, field(m.s_clamp_mode), field(m.t_clamp_mode));
+        self.tex_mipmap_mode(tmu, field(m.mipmap_mode), m.trilinear != 0);
         self.tex_lod_bias(tmu, m.lod_bias as i32 as f32 / 4.0);
         if info.format.uses_ncc() {
             self.tex_download_ncc(tmu, NccTable::Ncc0, &m.ncc_table.table());

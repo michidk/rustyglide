@@ -179,6 +179,13 @@ glide_enum!(
     }
 );
 
+impl Buffer {
+    /// The color buffer this stands for: `Front`, or `Back` for everything else.
+    pub fn color(self) -> Self {
+        if self == Self::Front { Self::Front } else { Self::Back }
+    }
+}
+
 glide_enum!(
     /// `GrCmpFnc_t`.
     CmpFnc {
@@ -192,22 +199,6 @@ glide_enum!(
         Always = 0x7,
     }
 );
-
-impl CmpFnc {
-    /// Evaluates `new <op> old` on integer values, as the hardware compares.
-    pub fn test(self, new: u32, old: u32) -> bool {
-        match self {
-            Self::Never => false,
-            Self::Less => new < old,
-            Self::Equal => new == old,
-            Self::LEqual => new <= old,
-            Self::Greater => new > old,
-            Self::NotEqual => new != old,
-            Self::GEqual => new >= old,
-            Self::Always => true,
-        }
-    }
-}
 
 glide_enum!(
     /// `GrColorFormat_t`: byte order of a packed `GrColor_t`.
@@ -259,10 +250,6 @@ impl FogMode {
     pub const WITH_ITERATED_Z: u32 = 0x3;
     pub const MULT2: u32 = 0x100;
     pub const ADD2: u32 = 0x200;
-
-    pub fn base(self) -> u32 {
-        self.0 & 0xff
-    }
 }
 
 impl TryFrom<u32> for FogMode {
@@ -305,6 +292,13 @@ glide_enum!(
     /// `GrOriginLocation_t`.
     Origin { UpperLeft = 0x0, LowerLeft = 0x1, Any = 0xff }
 );
+
+impl Origin {
+    /// `Any` is upper left, as on the hardware.
+    pub fn resolved(self) -> Self {
+        if self == Self::Any { Self::UpperLeft } else { self }
+    }
+}
 
 glide_enum!(
     /// `GrLOD_t` in Glide 2 numbering: 0 is 256 texels, 8 is 1 texel.
