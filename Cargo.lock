@@ -254,7 +254,6 @@ name = "glide3x"
 version = "0.3.0"
 dependencies = [
  "glide-abi",
- "rustyglide",
 ]
 
 [[package]]
