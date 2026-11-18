@@ -84,7 +84,9 @@ jobs:
           # Most Glide games are 32-bit and load a 32-bit glide2x.dll.
           - os: windows-2025
             target: i686-pc-windows-msvc
-          - os: macos-15
+          # Cross-compiled on Intel: the Apple Silicon runner pool often has no
+          # capacity, and a job it never picks up blocks the release.
+          - os: macos-15-intel
             target: aarch64-apple-darwin
           - os: macos-15-intel
             target: x86_64-apple-darwin
@@ -106,7 +108,8 @@ jobs:
         run: cargo build --locked --workspace --target ${{ matrix.target }}
       # Tests that need a GPU skip when the runner exposes no adapter.
       - name: Test
-        if: matrix.target != 'i686-pc-windows-msvc'
+        # Cross-compiled targets cannot run on their build runner.
+        if: matrix.target != 'i686-pc-windows-msvc' && matrix.target != 'aarch64-apple-darwin'
         run: cargo test --locked --workspace --exclude rustyglide-scenes --target ${{ matrix.target }}
       - name: Check decorated exports
         if: matrix.target == 'i686-pc-windows-msvc'

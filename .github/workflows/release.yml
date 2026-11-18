@@ -83,7 +83,9 @@ jobs:
           - os: windows-2025
             target: i686-pc-windows-msvc
             file: glide2x.dll
-          - os: macos-15
+          # Cross-compiled on Intel: the Apple Silicon runner pool often has no
+          # capacity, and a job it never picks up blocks the release.
+          - os: macos-15-intel
             target: aarch64-apple-darwin
             file: libglide2x.dylib
           - os: macos-15-intel
