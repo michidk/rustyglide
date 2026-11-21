@@ -18,7 +18,7 @@ crates/
   rustyglide-wgpu/    The renderer: consumes core output, owns wgpu objects.
   rustyglide/         Public Rust API: Glide = core + renderer + target.
   glide2x/            cdylib: Glide 2.4x C ABI over `rustyglide`.
-  glide3x/            cdylib, later: Glide 3 front end.
+  glide3x/            cdylib: Glide 3 front end.
   glide1x/            cdylib, later: Glide 2.1x shim (glide.dll).
   rustyglide-scenes/  Test scenes, golden images and the trace format.
 dev/                  gates.sh, reference-renderer container, scripts.

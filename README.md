@@ -14,12 +14,16 @@ feature and to be reusable by any game that used a Voodoo card.
   `libglide3x.so` with the 94 Glide 3.x exports, both with the decorated
   32-bit Windows names.
 
+<p align="center"><a href="#use">Use the library</a> · <a href="#development">Development</a> · <a href="docs/design.md">Design</a></p>
+
+<p align="center"><a href="#licence"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue" alt="MIT or Apache-2.0 license"></a></p>
+
 ## Scenes
 
 Rendered headless by the test suite on lavapipe; each is a golden image CI
 compares against (`crates/rustyglide-scenes`).
 
-<table>
+<table align="center">
   <tr><td align="center"><img src="crates/rustyglide-scenes/golden/gouraud.png" width="200" alt="Gouraud shading"><br>Gouraud shading</td><td align="center"><img src="crates/rustyglide-scenes/golden/zbuffer.png" width="200" alt="Z-buffer"><br>Z-buffer</td><td align="center"><img src="crates/rustyglide-scenes/golden/blend.png" width="200" alt="Alpha blending"><br>Alpha blending</td><td align="center"><img src="crates/rustyglide-scenes/golden/fog_table.png" width="200" alt="Table fog"><br>Table fog</td></tr>
   <tr><td align="center"><img src="crates/rustyglide-scenes/golden/texture_decal.png" width="200" alt="Perspective-correct texture"><br>Perspective-correct texture</td><td align="center"><img src="crates/rustyglide-scenes/golden/mipmap.png" width="200" alt="Mipmaps"><br>Mipmaps</td><td align="center"><img src="crates/rustyglide-scenes/golden/chroma_key.png" width="200" alt="Chroma key"><br>Chroma key</td><td align="center"><img src="crates/rustyglide-scenes/golden/texture_formats.png" width="200" alt="Every texture format"><br>Every texture format</td></tr>
 </table>
